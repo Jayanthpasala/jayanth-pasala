@@ -14,7 +14,8 @@ const BillManagement: React.FC<BillManagementProps> = ({ sales, setSales, settin
 
   const filteredSales = sales.filter(s => 
     s.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    s.tokenNumber.toString().includes(searchTerm)
+    s.tokenNumber.toString().includes(searchTerm) ||
+    s.settledBy?.toLowerCase().includes(searchTerm.toLowerCase())
   ).sort((a, b) => b.timestamp - a.timestamp);
 
   const handleDelete = (id: string) => {
@@ -68,6 +69,7 @@ const BillManagement: React.FC<BillManagementProps> = ({ sales, setSales, settin
           </div>
 
           <div class="center">Order #${sale.id}</div>
+          <div class="center">Staff: ${sale.settledBy}</div>
           <div class="center">${new Date(sale.timestamp).toLocaleString()}</div>
           <div class="divider"></div>
           ${itemsHtml}
@@ -105,7 +107,7 @@ const BillManagement: React.FC<BillManagementProps> = ({ sales, setSales, settin
         <div className="relative w-full md:w-80">
           <input
             type="text"
-            placeholder="Search Token # or Bill ID..."
+            placeholder="Search Token, Bill ID or Staff..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-4 pr-4 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/50 transition-all"
@@ -119,7 +121,7 @@ const BillManagement: React.FC<BillManagementProps> = ({ sales, setSales, settin
             <thead>
               <tr className="bg-zinc-800/50 border-b border-zinc-800">
                 <th className="p-4 text-[10px] font-black uppercase text-zinc-500">Token</th>
-                <th className="p-4 text-[10px] font-black uppercase text-zinc-500">Timestamp</th>
+                <th className="p-4 text-[10px] font-black uppercase text-zinc-500">Staff</th>
                 <th className="p-4 text-[10px] font-black uppercase text-zinc-500">Bill Code</th>
                 <th className="p-4 text-[10px] font-black uppercase text-zinc-500">Method</th>
                 <th className="p-4 text-[10px] font-black uppercase text-zinc-500 text-right">Amount</th>
@@ -134,8 +136,11 @@ const BillManagement: React.FC<BillManagementProps> = ({ sales, setSales, settin
                       #{sale.tokenNumber}
                     </div>
                   </td>
-                  <td className="p-4 text-xs font-mono text-zinc-400">
-                    {new Date(sale.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                  <td className="p-4">
+                    <div className="text-xs font-bold text-white uppercase tracking-tight">{sale.settledBy}</div>
+                    <div className="text-[10px] font-mono text-zinc-500">
+                      {new Date(sale.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                    </div>
                   </td>
                   <td className="p-4">
                     <span className="font-bold text-zinc-300 tracking-wider text-sm">{sale.id}</span>
@@ -214,6 +219,10 @@ const BillManagement: React.FC<BillManagementProps> = ({ sales, setSales, settin
               ))}
             </div>
             <div className="p-6 bg-black/20 space-y-4 border-t border-zinc-800">
+               <div className="flex justify-between text-zinc-500 uppercase font-black text-[10px] tracking-widest">
+                  <span>Settled By</span>
+                  <span className="text-white">{selectedSale.settledBy}</span>
+               </div>
                <div className="flex justify-between text-zinc-500 uppercase font-black text-[10px] tracking-widest">
                   <span>Payment Type</span>
                   <span>{selectedSale.paymentMethod}</span>

@@ -33,6 +33,18 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
     return acc;
   }, {} as Record<PaymentMethod, number>);
 
+  // New logic: Revenue by Staff Member
+  const revenueByStaff = validSales.reduce((acc, s) => {
+    const staffName = s.settledBy || 'Unknown';
+    acc[staffName] = (acc[staffName] || 0) + s.total;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const staffData = Object.entries(revenueByStaff).map(([name, revenue]) => ({
+    name,
+    revenue
+  })).sort((a, b) => b.revenue - a.revenue);
+
   // Cash Flow Calculations
   const cashSales = validSales.filter(s => s.paymentMethod === PaymentMethod.CASH);
   const totalCashReceived = cashSales.reduce((acc, s) => acc + (s.cashReceived || s.total), 0);
@@ -54,7 +66,7 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
+    <div className="space-y-8 animate-in fade-in duration-700 pb-20">
       <div className="flex justify-between items-end">
         <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Performance Metrics</h2>
         {voidedCount > 0 && (
@@ -92,8 +104,58 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
         </div>
       </div>
 
-      {/* Cash Drawer Reconciliation */}
+      {/* Staff and Payment Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-zinc-900 p-8 rounded-3xl border border-zinc-800 shadow-xl space-y-6">
+          <div className="flex justify-between items-center">
+             <p className="text-xs font-black uppercase text-zinc-400 tracking-widest">Revenue by Staff Member</p>
+             <span className="text-[9px] font-black text-yellow-500 uppercase bg-yellow-500/10 px-2 py-1 rounded border border-yellow-500/20">Contribution</span>
+          </div>
+          
+          <div className="space-y-4">
+            {staffData.length > 0 ? staffData.map((staff, idx) => (
+              <div key={staff.name} className="flex flex-col gap-1">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 flex items-center justify-center bg-zinc-800 rounded text-[10px] font-black text-zinc-500">{idx + 1}</span>
+                    <span className="text-sm font-bold text-white uppercase">{staff.name}</span>
+                  </div>
+                  <span className="text-lg font-black text-yellow-500">₹{staff.revenue.toFixed(2)}</span>
+                </div>
+                <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-yellow-500 h-full rounded-full" 
+                    style={{ width: `${(staff.revenue / totalRevenue) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )) : (
+              <p className="text-center text-zinc-600 text-xs italic py-4">No staff activity yet</p>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-zinc-900 p-8 rounded-3xl border border-zinc-800 shadow-xl space-y-6">
+            <p className="text-xs font-black uppercase text-zinc-400 tracking-widest">Revenue by Payment Mode</p>
+            <div className="grid grid-cols-1 gap-3">
+              {[PaymentMethod.CASH, PaymentMethod.UPI, PaymentMethod.CARD].map(method => {
+                const amount = revenueByMethod[method] || 0;
+                return (
+                  <div key={method} className="bg-black/40 p-4 rounded-2xl border border-zinc-800 flex justify-between items-center hover:bg-black/60 transition-colors">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{method}</span>
+                      <span className="text-[9px] text-zinc-600 font-bold uppercase">{((amount / (totalRevenue || 1)) * 100).toFixed(0)}% of total</span>
+                    </div>
+                    <div className="text-2xl font-black text-white">₹{amount.toFixed(2)}</div>
+                  </div>
+                );
+              })}
+            </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Cash Drawer Reconciliation */}
         <div className="bg-zinc-900 p-8 rounded-3xl border border-zinc-800 shadow-xl space-y-6">
           <div className="flex justify-between items-center">
              <p className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Drawer Audit</p>
@@ -107,12 +169,6 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
               <span className="text-sm font-bold text-zinc-500 uppercase">Opening Balance</span>
               <div className="flex items-center gap-3">
                 <span className="text-xl font-black text-white">₹{openingCash.toFixed(2)}</span>
-                <button 
-                  onClick={() => setIsEditingCash(true)}
-                  className="text-[10px] font-black text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded border border-yellow-500/20 hover:bg-yellow-500/20"
-                >
-                  EDIT
-                </button>
               </div>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-zinc-800/50">
@@ -130,63 +186,9 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
           </div>
         </div>
 
-        <div className="bg-zinc-900 p-6 rounded-3xl border border-zinc-800 shadow-xl">
-            <p className="text-[10px] font-black uppercase text-zinc-500 mb-4 tracking-widest">Revenue by Payment Mode</p>
-            <div className="grid grid-cols-1 gap-3">
-              {[PaymentMethod.CASH, PaymentMethod.UPI, PaymentMethod.CARD].map(method => (
-                <div key={method} className="bg-black/40 p-4 rounded-2xl border border-zinc-800 flex justify-between items-center hover:bg-black/60 transition-colors">
-                  <span className="text-xs font-black text-zinc-400 uppercase tracking-tighter">{method}</span>
-                  <div className="text-2xl font-black text-white">₹{(revenueByMethod[method] || 0).toFixed(2)}</div>
-                </div>
-              ))}
-            </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-zinc-900 rounded-3xl border border-zinc-800 overflow-hidden flex flex-col shadow-2xl">
-          <div className="p-4 bg-zinc-800/50 border-b border-zinc-800 flex justify-between items-center">
-            <h4 className="text-xs font-black uppercase text-zinc-400">Transaction History</h4>
-            <span className="text-[10px] text-zinc-500 font-bold uppercase">Showing last {Math.min(validSales.length, 20)} valid sales</span>
-          </div>
-          <div className="flex-1 overflow-y-auto max-h-[400px]">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-zinc-800 text-[10px] uppercase text-zinc-500">
-                  <th className="p-4">Time</th>
-                  <th className="p-4">Order #</th>
-                  <th className="p-4">Mode</th>
-                  <th className="p-4 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {validSales.slice().reverse().map(sale => (
-                  <tr key={sale.id} className="border-b border-zinc-800 hover:bg-zinc-800/20">
-                    <td className="p-4 text-xs font-mono text-zinc-400">
-                      {new Date(sale.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                    <td className="p-4 font-bold">#{sale.id}</td>
-                    <td className="p-4">
-                      <span className="text-[9px] font-black bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700 uppercase">
-                        {sale.paymentMethod}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right font-black text-yellow-500">₹{sale.total.toFixed(2)}</td>
-                  </tr>
-                ))}
-                {validSales.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="p-12 text-center text-zinc-700 uppercase italic font-bold">No sales recorded yet</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
         <div className="bg-zinc-900 p-6 rounded-3xl border border-zinc-800 shadow-2xl flex flex-col gap-6">
            <h4 className="text-xs font-black uppercase text-zinc-400">Revenue Trend (Last 10 Orders)</h4>
-           <div className="h-[300px] w-full">
+           <div className="h-[250px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#27272a" />
@@ -203,9 +205,6 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-           </div>
-           <div className="mt-auto p-4 bg-zinc-800/50 rounded-2xl border border-zinc-700">
-              <p className="text-xs text-zinc-400">Financial data is stored securely in current session memory. Use "Admin" role to update opening balances in Bill Settings.</p>
            </div>
         </div>
       </div>
@@ -247,12 +246,6 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
                     Update Cash
                   </button>
                 </div>
-              </div>
-
-              <div className="bg-blue-500/5 border border-blue-500/10 p-4 rounded-xl">
-                <p className="text-[10px] text-blue-400 text-center leading-relaxed font-bold uppercase">
-                  Note: This change will immediately update the "Expected Cash" total for the entire shift.
-                </p>
               </div>
             </div>
           </div>

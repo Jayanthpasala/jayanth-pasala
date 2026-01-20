@@ -59,4 +59,5 @@ export interface SaleRecord {
   cashReceived?: number;
   cashChange?: number;
   status: OrderStatus;
+  settledBy: string; // Name of the staff/admin who settled the bill
 }

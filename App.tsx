@@ -22,6 +22,7 @@ const App: React.FC = () => {
   const [session, setSession] = useState<UserSession | null>(null);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const [activeTab, setActiveTab] = useState<string>('Order Menu');
   const [inventory, setInventory] = useState<MenuItem[]>(INITIAL_MENU);
@@ -43,15 +44,16 @@ const App: React.FC = () => {
         setSession({ email, role: UserRole.WORKER, name: worker.name });
         setLoginError('');
       } else {
-        setLoginError('Invalid Email ID. Please contact Admin.');
+        setLoginError('Access denied. Please check your email or contact admin.');
       }
     }
   };
 
-  const handleLogout = () => {
+  const confirmLogout = () => {
     setSession(null);
     setLoginEmail('');
     setCart([]);
+    setShowLogoutConfirm(false);
   };
 
   const addToCart = useCallback((item: MenuItem) => {
@@ -83,6 +85,7 @@ const App: React.FC = () => {
   }, []);
 
   const completeSale = useCallback((total: number, paymentMethod: PaymentMethod, cashDetails?: { received: number, change: number }) => {
+    if (!session) return;
     const nextToken = sales.length > 0 ? (sales[sales.length - 1].tokenNumber % 999) + 1 : 1;
     const record: SaleRecord = {
       id: generateBillCode(),
@@ -93,12 +96,13 @@ const App: React.FC = () => {
       paymentMethod,
       cashReceived: cashDetails?.received,
       cashChange: cashDetails?.change,
-      status: OrderStatus.PENDING
+      status: OrderStatus.PENDING,
+      settledBy: session.name
     };
     setSales(prev => [...prev, record]);
     setCart([]);
     setActiveTab('Token Monitor');
-  }, [cart, sales]);
+  }, [cart, sales, session]);
 
   const updateTokenStatus = useCallback((saleId: string, newStatus: OrderStatus) => {
     setSales(prev => prev.map(s => s.id === saleId ? { ...s, status: newStatus } : s));
@@ -113,98 +117,99 @@ const App: React.FC = () => {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6">
-        <div className="w-full max-w-md space-y-8 animate-in fade-in zoom-in duration-500">
-          <div className="text-center space-y-4">
-            <div className="w-24 h-24 bg-white rounded-full mx-auto flex items-center justify-center p-3 shadow-2xl border-4 border-yellow-500">
-              <img 
-                src="https://raw.githubusercontent.com/ant-design/ant-design-icons/master/packages/icons-svg/svg/filled/coffee.svg" 
-                alt="Logo" 
-                className="w-full h-full object-contain"
-                style={{ filter: 'sepia(1) saturate(5) hue-rotate(340deg)' }}
-              />
+      <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center p-6 font-sans">
+        <div className="w-full max-w-md space-y-8">
+          <div className="text-center">
+            <div className="w-20 h-20 bg-white rounded-2xl mx-auto flex items-center justify-center shadow-[0_0_40px_rgba(255,255,255,0.1)] mb-6 transform rotate-3">
+              <span className="text-3xl font-black text-black">KC</span>
             </div>
-            <h1 className="text-4xl font-black text-white uppercase tracking-tighter">KAPI COAST</h1>
-            <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest">Employee Portal Login</p>
+            <h1 className="text-3xl font-black text-white tracking-tight uppercase">Kapi Coast</h1>
+            <p className="text-zinc-500 text-xs font-bold tracking-widest uppercase mt-2">Partner & Staff Login</p>
           </div>
 
-          <form onSubmit={handleLogin} className="bg-zinc-900 p-8 rounded-[2.5rem] border border-zinc-800 shadow-2xl space-y-6">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase text-zinc-500 ml-1">Email Identifier</label>
-              <input 
-                type="email"
-                required
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                placeholder="enter your@email.com"
-                className="w-full bg-black border-2 border-zinc-800 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-yellow-500 transition-all text-lg"
-              />
-              {loginError && <p className="text-red-500 text-[10px] font-black uppercase mt-2 ml-1">{loginError}</p>}
+          <form onSubmit={handleLogin} className="bg-[#1a1a1a] p-10 rounded-[2.5rem] border border-zinc-800/50 shadow-2xl space-y-8">
+            <div className="space-y-4">
+              <div className="relative">
+                <label className="text-[10px] font-black uppercase text-zinc-500 ml-1 mb-2 block">Registered Email Address</label>
+                <input 
+                  type="email"
+                  required
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="name@kapicoast.com"
+                  className="w-full bg-[#0d0d0d] border border-zinc-800 rounded-2xl px-6 py-4 text-white placeholder-zinc-700 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 transition-all text-sm font-bold"
+                />
+              </div>
+              {loginError && (
+                <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl">
+                  <p className="text-red-500 text-[10px] font-black uppercase text-center">{loginError}</p>
+                </div>
+              )}
             </div>
 
             <button 
               type="submit"
-              className="w-full bg-yellow-500 text-black py-5 rounded-2xl font-black uppercase tracking-widest text-lg hover:bg-yellow-400 active:scale-95 transition-all shadow-xl shadow-yellow-500/10"
+              className="w-full bg-white text-black py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-zinc-200 active:scale-95 transition-all shadow-xl"
             >
-              Enter Dashboard
+              Sign In to Dashboard
             </button>
           </form>
 
-          <p className="text-center text-zinc-600 text-[10px] font-black uppercase tracking-widest">
-            KAPI COAST POS v3.0 &bull; SECURE SESSION
-          </p>
+          <div className="text-center">
+            <p className="text-zinc-600 text-[9px] font-black uppercase tracking-widest">
+              Secured POS Environment v4.0.2
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gray-950 font-sans selection:bg-yellow-500 text-zinc-100">
-      <header className="bg-zinc-900 border-b border-zinc-800 p-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center p-1 border border-zinc-700">
-            <img 
-              src="https://raw.githubusercontent.com/ant-design/ant-design-icons/master/packages/icons-svg/svg/filled/coffee.svg" 
-              className="w-full h-full"
-              style={{ filter: 'sepia(1) saturate(5) hue-rotate(340deg)' }}
-            />
+    <div className="flex flex-col h-screen bg-[#090909] text-zinc-100 overflow-hidden">
+      {/* Top Header - Zomato style */}
+      <header className="bg-[#111] border-b border-zinc-800/50 px-6 py-4 flex items-center justify-between z-50">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center font-black text-black text-sm">KC</div>
+            <h1 className="text-lg font-black tracking-tighter uppercase hidden sm:block">{settings.stallName}</h1>
           </div>
-          <div className="flex flex-col">
-            <h1 className="text-lg font-black tracking-tighter text-white uppercase leading-none">{settings.stallName}</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <span className={`w-2 h-2 rounded-full ${session.role === UserRole.ADMIN ? 'bg-yellow-500' : 'bg-green-500'}`}></span>
-              <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">
-                {session.name} ({session.role === UserRole.ADMIN ? 'ADMIN' : 'MANAGER'})
-              </span>
-            </div>
-          </div>
+          
+          <nav className="flex items-center gap-2 bg-black/40 p-1 rounded-2xl border border-white/5">
+            {tabs.map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all whitespace-nowrap ${
+                  activeTab === tab 
+                  ? 'bg-yellow-500 text-black' 
+                  : 'text-zinc-500 hover:text-white hover:bg-zinc-800'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </nav>
         </div>
 
-        <nav className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/5 overflow-x-auto no-scrollbar">
-          {tabs.map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
-                activeTab === tab 
-                ? 'bg-yellow-500 text-black shadow-lg' 
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </nav>
-
-        <button 
-          onClick={handleLogout}
-          className="px-4 py-2 bg-zinc-800 hover:bg-red-500/10 hover:text-red-500 text-zinc-400 rounded-xl text-xs font-black uppercase tracking-widest border border-zinc-700 transition-all"
-        >
-          Logout
-        </button>
+        <div className="flex items-center gap-4">
+          <div className="text-right hidden md:block">
+            <div className="text-xs font-black uppercase text-white leading-none">{session.name}</div>
+            <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{session.role} MODE</div>
+          </div>
+          <button 
+            onClick={() => setShowLogoutConfirm(true)}
+            className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all border border-red-500/20"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
+        </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 bg-black/20">
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto p-4 md:p-8">
         <div className="max-w-7xl mx-auto h-full">
           {activeTab === 'Order Menu' && (
             <OrderMenu 
@@ -232,6 +237,37 @@ const App: React.FC = () => {
           {activeTab === 'Sales Report' && <SalesReport sales={sales} openingCash={openingCash} onUpdateOpeningCash={setOpeningCash} />}
         </div>
       </main>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="bg-[#1a1a1a] border border-zinc-800 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-black uppercase text-white tracking-tight">End Session?</h3>
+              <p className="text-zinc-500 text-sm font-medium">Are you sure you want to log out of the POS system? Unsaved carts will be cleared.</p>
+            </div>
+            <div className="mt-8 space-y-3">
+              <button 
+                onClick={confirmLogout}
+                className="w-full bg-red-500 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
+              >
+                Yes, Sign Out
+              </button>
+              <button 
+                onClick={() => setShowLogoutConfirm(false)}
+                className="w-full bg-zinc-800 text-zinc-400 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:text-white transition-all"
+              >
+                Stay Logged In
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

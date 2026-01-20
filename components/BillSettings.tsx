@@ -85,7 +85,7 @@ const BillSettingsView: React.FC<BillSettingsProps> = ({ settings, setSettings, 
           </div>
         </div>
 
-        {/* Worker Management */}
+        {/* Staff Management */}
         <div className="bg-zinc-900 p-8 rounded-3xl border border-zinc-800 space-y-6 shadow-2xl">
           <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest border-b border-zinc-800 pb-2">Staff Access Control</h3>
           
@@ -93,14 +93,14 @@ const BillSettingsView: React.FC<BillSettingsProps> = ({ settings, setSettings, 
             <div className="grid grid-cols-1 gap-3">
               <input 
                 type="text"
-                placeholder="Worker Name"
+                placeholder="Staff Member Name"
                 value={newWorker.name}
                 onChange={e => setNewWorker({...newWorker, name: e.target.value})}
                 className="bg-black border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:border-yellow-500 outline-none"
               />
               <input 
                 type="email"
-                placeholder="Worker Email ID"
+                placeholder="Staff Email ID"
                 value={newWorker.email}
                 onChange={e => setNewWorker({...newWorker, email: e.target.value})}
                 className="bg-black border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:border-yellow-500 outline-none"
@@ -132,7 +132,7 @@ const BillSettingsView: React.FC<BillSettingsProps> = ({ settings, setSettings, 
                 </div>
               ))}
               {settings.workerAccounts.length === 0 && (
-                <p className="py-4 text-center text-zinc-600 text-xs italic">No workers added yet.</p>
+                <p className="py-4 text-center text-zinc-600 text-xs italic">No staff members added yet.</p>
               )}
             </div>
           </div>
