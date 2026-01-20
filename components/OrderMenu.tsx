@@ -49,6 +49,7 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
   }, [items, searchQuery, selectedCategory]);
 
   const handleAddClick = (item: MenuItem) => {
+    if (item.isAvailable === false) return; // Prevent adding if out of stock
     onAdd(item);
     setLastAdded(item.name);
     setClickedId(item.id);
@@ -189,16 +190,25 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {filteredItems.map(item => {
           const isClicked = clickedId === item.id;
+          const isOutOfStock = item.isAvailable === false;
           return (
             <div key={item.id} className="relative group">
               <button
+                disabled={isOutOfStock}
                 onClick={() => handleAddClick(item)}
                 className={`w-full h-36 flex flex-col items-center justify-center rounded-2xl p-4 transition-all duration-300 active:scale-90 shadow-xl overflow-hidden relative ${
-                  isClicked 
-                    ? 'border-4 border-yellow-400 bg-yellow-400/10 scale-105 ring-4 ring-yellow-400/20' 
-                    : 'bg-zinc-900 border-2 border-zinc-800 hover:border-yellow-500 hover:shadow-yellow-500/10'
+                  isOutOfStock
+                    ? 'bg-zinc-950 border-zinc-900 grayscale opacity-60 cursor-not-allowed'
+                    : isClicked 
+                      ? 'border-4 border-yellow-400 bg-yellow-400/10 scale-105 ring-4 ring-yellow-400/20' 
+                      : 'bg-zinc-900 border-2 border-zinc-800 hover:border-yellow-500 hover:shadow-yellow-500/10'
                 }`}
               >
+                {isOutOfStock && (
+                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40">
+                    <span className="bg-red-600 text-white text-[10px] font-black uppercase px-2 py-1 rounded tracking-tighter transform -rotate-12 border border-white">SOLD OUT</span>
+                  </div>
+                )}
                 <div className={`absolute inset-0 bg-yellow-400 transition-opacity duration-300 pointer-events-none ${isClicked ? 'opacity-20' : 'opacity-0'}`} />
                 <div className="text-zinc-500 text-[10px] font-bold uppercase mb-1 relative z-10">{item.category}</div>
                 <div className={`text-lg font-black text-center leading-tight mb-2 transition-colors line-clamp-2 px-1 relative z-10 ${
@@ -206,11 +216,13 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
                 }`}>
                   {item.name}
                 </div>
-                <div className={`px-3 py-1 rounded-lg font-bold text-sm relative z-10 transition-colors ${
-                  isClicked ? 'bg-yellow-400 text-black' : 'bg-zinc-800 text-yellow-500'
-                }`}>
-                  ₹{item.price.toFixed(2)}
-                </div>
+                {!isOutOfStock && (
+                  <div className={`px-3 py-1 rounded-lg font-bold text-sm relative z-10 transition-colors ${
+                    isClicked ? 'bg-yellow-400 text-black' : 'bg-zinc-800 text-yellow-500'
+                  }`}>
+                    ₹{item.price.toFixed(2)}
+                  </div>
+                )}
               </button>
             </div>
           );

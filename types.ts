@@ -17,12 +17,24 @@ export enum OrderStatus {
   VOIDED = 'VOIDED'
 }
 
+export interface WorkerAccount {
+  email: string;
+  name: string;
+}
+
+export interface UserSession {
+  email: string;
+  role: UserRole;
+  name: string;
+}
+
 export interface MenuItem {
   id: string;
   name: string;
   price: number;
   category: string;
   description?: string;
+  isAvailable?: boolean;
 }
 
 export interface CartItem extends MenuItem {
@@ -33,7 +45,8 @@ export interface CartItem extends MenuItem {
 export interface BillSettings {
   stallName: string;
   footerMessage: string;
-  taxRate: number; // percentage
+  taxRate: number;
+  workerAccounts: WorkerAccount[];
 }
 
 export interface SaleRecord {

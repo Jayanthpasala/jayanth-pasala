@@ -29,13 +29,20 @@ const ManageItems: React.FC<ManageItemsProps> = ({ items, setItems }) => {
       name: newItem.name,
       price: parseFloat(newItem.price),
       category: finalCategory,
-      description: newItem.description
+      description: newItem.description,
+      isAvailable: true // Default to available
     };
     
     setItems(prev => [...prev, item]);
     setNewItem({ name: '', price: '', category: 'Food', description: '' });
     setCustomCategory('');
     setIsAddingNewCategory(false);
+  };
+
+  const toggleAvailability = (id: string) => {
+    setItems(prev => prev.map(item => 
+      item.id === id ? { ...item, isAvailable: item.isAvailable === false ? true : false } : item
+    ));
   };
 
   const startEditing = (item: MenuItem) => {
@@ -150,6 +157,7 @@ const ManageItems: React.FC<ManageItemsProps> = ({ items, setItems }) => {
         <table className="w-full text-left">
           <thead>
             <tr className="bg-zinc-800/50 border-b border-zinc-800">
+              <th className="p-4 text-xs font-black uppercase text-zinc-400">Status</th>
               <th className="p-4 text-xs font-black uppercase text-zinc-400">Name & Description</th>
               <th className="p-4 text-xs font-black uppercase text-zinc-400">Category</th>
               <th className="p-4 text-xs font-black uppercase text-zinc-400">Price (₹)</th>
@@ -158,7 +166,20 @@ const ManageItems: React.FC<ManageItemsProps> = ({ items, setItems }) => {
           </thead>
           <tbody>
             {items.map(item => (
-              <tr key={item.id} className="border-b border-zinc-800 hover:bg-zinc-800/20 transition-colors">
+              <tr key={item.id} className={`border-b border-zinc-800 hover:bg-zinc-800/20 transition-colors ${item.isAvailable === false ? 'opacity-70' : ''}`}>
+                <td className="p-4">
+                  <button 
+                    onClick={() => toggleAvailability(item.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full font-black text-[9px] uppercase border transition-all ${
+                      item.isAvailable === false 
+                        ? 'bg-red-500/10 border-red-500/40 text-red-500' 
+                        : 'bg-green-500/10 border-green-500/40 text-green-500'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${item.isAvailable === false ? 'bg-red-500' : 'bg-green-500'}`}></span>
+                    {item.isAvailable === false ? 'OFF' : 'ON'}
+                  </button>
+                </td>
                 {editingId === item.id && editForm ? (
                   <>
                     <td className="p-4 space-y-2">
@@ -215,7 +236,7 @@ const ManageItems: React.FC<ManageItemsProps> = ({ items, setItems }) => {
                 ) : (
                   <>
                     <td className="p-4">
-                      <div className="font-bold">{item.name}</div>
+                      <div className={`font-bold ${item.isAvailable === false ? 'text-zinc-500 line-through' : ''}`}>{item.name}</div>
                       <div className="text-xs text-zinc-500 line-clamp-1">{item.description || 'No description'}</div>
                     </td>
                     <td className="p-4">
@@ -244,7 +265,7 @@ const ManageItems: React.FC<ManageItemsProps> = ({ items, setItems }) => {
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={4} className="p-12 text-center text-zinc-600 font-bold uppercase italic tracking-widest">
+                <td colSpan={5} className="p-12 text-center text-zinc-600 font-bold uppercase italic tracking-widest">
                   Inventory is empty
                 </td>
               </tr>

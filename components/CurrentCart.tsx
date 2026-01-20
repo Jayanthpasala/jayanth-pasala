@@ -71,12 +71,12 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
       </div>
     `).join('');
 
-    // KITCHEN RECEIPT CONTENT (KOT) - Usually no prices, focus on quantities and notes
+    // KITCHEN RECEIPT CONTENT (KOT)
     const kitchenItemsHtml = items.map(item => `
-      <div class="item-row" style="font-size: 16px; font-weight: bold; border-bottom: 1px solid #eee; padding: 4px 0;">
+      <div class="item-row" style="font-size: 16px; font-weight: bold; border-bottom: 1px dashed #ccc; padding: 6px 0;">
         <span>${item.quantity} x ${item.name}</span>
       </div>
-      ${item.instructions ? `<div style="font-size: 14px; font-style: italic; margin-bottom: 8px; color: #333;">>>> INSTRUCTION: ${item.instructions}</div>` : ''}
+      ${item.instructions ? `<div style="font-size: 14px; font-weight: bold; margin: 4px 0 10px 10px; color: #000; border-left: 3px solid #000; padding-left: 5px;">>>> ${item.instructions.toUpperCase()}</div>` : ''}
     `).join('');
 
     const receiptHtml = `
@@ -104,7 +104,7 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
               text-align: center;
             }
             .token-label { font-size: 14px; font-weight: bold; text-transform: uppercase; }
-            .token-number { font-size: 56px; font-weight: 900; line-height: 1; margin: 5px 0; }
+            .token-number { font-size: 64px; font-weight: 900; line-height: 1; margin: 5px 0; }
             .divider { border-bottom: 1px dashed #000; margin: 10px 0; }
             .item-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
             .item-name { flex: 1; display: flex; flex-direction: column; }
@@ -112,13 +112,12 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
             .item-total { width: 25mm; text-align: right; }
             .totals { font-weight: bold; margin-top: 10px; border-top: 1px solid #000; padding-top: 5px; }
             .footer { margin-top: 20px; font-style: italic; font-size: 10px; }
-            .page-break { page-break-after: always; border-bottom: 2px solid #000; margin: 20px 0; }
-            .kot-header { background: #000; color: #fff; padding: 5px; font-size: 20px; font-weight: bold; margin-bottom: 10px; }
+            .page-break { page-break-after: always; border-bottom: 2px double #000; margin: 30px 0; padding-bottom: 10px; }
+            .kot-header { background: #000; color: #fff; padding: 8px; font-size: 22px; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; }
           </style>
         </head>
         <body>
-          <!-- KITCHEN COPY (KOT) -->
-          <div class="center kot-header">KITCHEN COPY (KOT)</div>
+          <div class="center kot-header">KITCHEN KOT</div>
           <div class="center header">${settings.stallName.toUpperCase()}</div>
           <div class="token-container">
             <div class="token-label">TOKEN NUMBER</div>
@@ -128,11 +127,10 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
           <div class="divider"></div>
           <div style="margin-bottom: 10px;">${kitchenItemsHtml}</div>
           <div class="divider"></div>
-          <div class="center">*** START COOKING ***</div>
+          <div class="center" style="font-weight: bold; font-size: 14px;">*** KITCHEN COPY ***</div>
           
           <div class="page-break"></div>
 
-          <!-- CUSTOMER COPY -->
           <div class="center header">${settings.stallName.toUpperCase()}</div>
           <div class="center" style="font-weight: bold;">CUSTOMER RECEIPT</div>
           <div class="token-container">
@@ -174,7 +172,7 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
           ` : ''}
           <div class="divider"></div>
           <div class="center footer">${settings.footerMessage}</div>
-          <div class="center" style="font-size: 8px; margin-top: 10px;">Powered by POS Pro</div>
+          <div class="center" style="font-size: 8px; margin-top: 10px; opacity: 0.5;">Thank you for your visit!</div>
         </body>
       </html>
     `;
@@ -381,9 +379,8 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
           >
             {paymentMethod === PaymentMethod.CASH && cashReceived !== '' && cashReceived < total 
               ? `Short ₹${(total - (cashReceived || 0)).toFixed(2)}` 
-              : 'Bill & Print'}
+              : 'Bill & Print (2 Copies)'}
           </button>
-          <div className="text-[10px] text-center text-zinc-500 italic">Printing 2 copies: Kitchen (KOT) + Customer</div>
         </div>
       </div>
 

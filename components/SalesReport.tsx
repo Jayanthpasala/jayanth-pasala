@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { SaleRecord, PaymentMethod, OrderStatus } from '../types';
 import { 
   BarChart, 
@@ -15,9 +15,13 @@ import {
 interface SalesReportProps {
   sales: SaleRecord[];
   openingCash: number;
+  onUpdateOpeningCash?: (val: number) => void;
 }
 
-const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash }) => {
+const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateOpeningCash }) => {
+  const [isEditingCash, setIsEditingCash] = useState(false);
+  const [tempCash, setTempCash] = useState(openingCash.toString());
+
   // Only count sales that aren't VOIDED
   const validSales = sales.filter(s => s.status !== OrderStatus.VOIDED);
   const totalRevenue = validSales.reduce((acc, s) => acc + s.total, 0);
@@ -41,6 +45,14 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash }) => {
     revenue: s.total,
   }));
 
+  const handleSaveCash = () => {
+    const val = parseFloat(tempCash) || 0;
+    if (onUpdateOpeningCash) {
+      onUpdateOpeningCash(val);
+    }
+    setIsEditingCash(false);
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
       <div className="flex justify-between items-end">
@@ -58,12 +70,18 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash }) => {
           <h3 className="text-5xl font-black text-yellow-500 tracking-tighter">₹{totalRevenue.toFixed(2)}</h3>
         </div>
         
-        <div className="bg-zinc-900 p-6 rounded-3xl border border-zinc-800 flex flex-col justify-center shadow-xl">
+        <div className="bg-zinc-900 p-6 rounded-3xl border border-zinc-800 flex flex-col justify-center shadow-xl relative overflow-hidden">
           <p className="text-[10px] font-black uppercase text-zinc-500 mb-1">Expected Cash in Drawer</p>
           <div className="flex items-baseline gap-2">
             <h3 className="text-5xl font-black text-green-500 tracking-tighter">₹{expectedDrawerCash.toFixed(2)}</h3>
-            <span className="text-[10px] text-zinc-600 font-bold uppercase">(Incl. Opening)</span>
           </div>
+          <button 
+            onClick={() => { setIsEditingCash(true); setTempCash(openingCash.toString()); }}
+            className="absolute top-4 right-4 p-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-zinc-400 hover:text-white transition-all border border-zinc-700"
+            title="Adjust Opening Balance"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+          </button>
         </div>
 
         <div className="bg-zinc-900 p-6 rounded-3xl border border-zinc-800 flex flex-col justify-center shadow-xl">
@@ -87,7 +105,15 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash }) => {
           <div className="space-y-4">
             <div className="flex justify-between items-center py-2 border-b border-zinc-800/50">
               <span className="text-sm font-bold text-zinc-500 uppercase">Opening Balance</span>
-              <span className="text-xl font-black text-white">₹{openingCash.toFixed(2)}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xl font-black text-white">₹{openingCash.toFixed(2)}</span>
+                <button 
+                  onClick={() => setIsEditingCash(true)}
+                  className="text-[10px] font-black text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded border border-yellow-500/20 hover:bg-yellow-500/20"
+                >
+                  EDIT
+                </button>
+              </div>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-zinc-800/50">
               <span className="text-sm font-bold text-zinc-500 uppercase">Total Cash Inflow (Sales)</span>
@@ -183,6 +209,55 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash }) => {
            </div>
         </div>
       </div>
+
+      {/* Cash Edit Modal */}
+      {isEditingCash && (
+        <div className="fixed inset-0 z-[130] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-sm rounded-[2rem] overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+            <div className="p-8 space-y-6">
+              <div className="text-center space-y-2">
+                <h3 className="text-xl font-black uppercase tracking-widest text-white">Adjust Drawer</h3>
+                <p className="text-xs text-zinc-500 font-bold uppercase">Update Opening Cash / Base Balance</p>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none text-green-500 text-2xl font-black">₹</div>
+                  <input 
+                    type="number"
+                    autoFocus
+                    value={tempCash}
+                    onChange={(e) => setTempCash(e.target.value)}
+                    className="w-full bg-black border-2 border-zinc-800 rounded-2xl pl-12 pr-6 py-5 text-3xl font-black text-white focus:outline-none focus:border-green-500 transition-all"
+                    placeholder="0.00"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    onClick={() => setIsEditingCash(false)}
+                    className="py-4 rounded-xl bg-zinc-800 text-zinc-400 font-black uppercase text-[10px] tracking-widest hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleSaveCash}
+                    className="py-4 rounded-xl bg-green-500 text-black font-black uppercase text-[10px] tracking-widest shadow-lg shadow-green-500/20"
+                  >
+                    Update Cash
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-blue-500/5 border border-blue-500/10 p-4 rounded-xl">
+                <p className="text-[10px] text-blue-400 text-center leading-relaxed font-bold uppercase">
+                  Note: This change will immediately update the "Expected Cash" total for the entire shift.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
