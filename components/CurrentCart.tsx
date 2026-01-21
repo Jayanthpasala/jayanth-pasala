@@ -19,6 +19,7 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
   const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
   const [instructionEditId, setInstructionEditId] = useState<string | null>(null);
   const [tempInstruction, setTempInstruction] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   
   const [cashReceived, setCashReceived] = useState<number | ''>('');
 
@@ -54,9 +55,18 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
     }
   };
 
-  const handlePrint = () => {
+  const handleProcessOrder = () => {
     if (items.length === 0) return;
+    
+    // Validate cash received if applicable
+    if (paymentMethod === PaymentMethod.CASH && (cashReceived === '' || cashReceived < total)) {
+      return;
+    }
 
+    setShowConfirmModal(true);
+  };
+
+  const executeFinalPrint = () => {
     const currencySymbol = "₹";
     const timestamp = new Date().toLocaleString();
 
@@ -188,6 +198,7 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
         onComplete(total, paymentMethod, paymentMethod === PaymentMethod.CASH ? { received: Number(cashReceived), change: cashChange } : undefined);
         setDiscountValue(0);
         setCashReceived('');
+        setShowConfirmModal(false);
       }, 750);
     }
   };
@@ -370,7 +381,7 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
 
           <button
             disabled={items.length === 0 || (paymentMethod === PaymentMethod.CASH && (cashReceived === '' || cashReceived < total))}
-            onClick={handlePrint}
+            onClick={handleProcessOrder}
             className={`w-full py-6 rounded-2xl font-black text-xl uppercase tracking-widest transition-all active:scale-95 ${
               items.length > 0 && (paymentMethod !== PaymentMethod.CASH || (cashReceived !== '' && cashReceived >= total))
               ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20 border-b-4 border-yellow-700' 
@@ -379,11 +390,12 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
           >
             {paymentMethod === PaymentMethod.CASH && cashReceived !== '' && cashReceived < total 
               ? `Short ₹${(total - (cashReceived || 0)).toFixed(2)}` 
-              : 'Bill & Print (2 Copies)'}
+              : 'Process Payment'}
           </button>
         </div>
       </div>
 
+      {/* Instruction Edit Modal */}
       {instructionEditId && (
         <div className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl">
@@ -405,6 +417,64 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
               >
                 Save
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[130] bg-black/95 backdrop-blur-xl flex items-center justify-center p-6">
+          <div className="bg-[#1a1a1a] border border-zinc-800 w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-8 space-y-6">
+              <div className="text-center space-y-2">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-yellow-500/10 text-yellow-500 mb-2">
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-black uppercase text-white tracking-tight">Confirm Order</h3>
+                <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest">Token #{orderNo} • {paymentMethod}</p>
+              </div>
+
+              <div className="bg-black/40 rounded-3xl p-6 border border-zinc-800 space-y-4">
+                <div className="flex justify-between items-center text-zinc-400">
+                  <span className="text-[10px] font-black uppercase tracking-widest">Total Bill</span>
+                  <span className="text-xl font-black text-white">₹{total.toFixed(2)}</span>
+                </div>
+                {paymentMethod === PaymentMethod.CASH && (
+                  <>
+                    <div className="flex justify-between items-center text-zinc-400">
+                      <span className="text-[10px] font-black uppercase tracking-widest">Cash Received</span>
+                      <span className="text-xl font-black text-green-400">₹{Number(cashReceived).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-3 border-t border-zinc-800">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-yellow-500">Change to Return</span>
+                      <span className="text-3xl font-black text-yellow-500">₹{cashChange.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+                {paymentMethod !== PaymentMethod.CASH && (
+                  <div className="text-center py-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Waiting for {paymentMethod} Confirmation</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-3">
+                <button 
+                  onClick={executeFinalPrint}
+                  className="w-full bg-green-500 text-black py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-green-400 active:scale-95 transition-all shadow-lg shadow-green-500/20"
+                >
+                  Print & Finalize Token
+                </button>
+                <button 
+                  onClick={() => setShowConfirmModal(false)}
+                  className="w-full bg-zinc-800 text-zinc-400 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:text-white transition-all"
+                >
+                  Go Back & Edit
+                </button>
+              </div>
             </div>
           </div>
         </div>

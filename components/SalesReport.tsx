@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { SaleRecord, PaymentMethod, OrderStatus } from '../types';
 import { 
   BarChart, 
@@ -21,9 +21,30 @@ interface SalesReportProps {
 const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateOpeningCash }) => {
   const [isEditingCash, setIsEditingCash] = useState(false);
   const [tempCash, setTempCash] = useState(openingCash.toString());
+  
+  // Filtering State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
 
-  // Only count sales that aren't VOIDED
-  const validSales = sales.filter(s => s.status !== OrderStatus.VOIDED);
+  // Only count sales that aren't VOIDED for general metrics
+  const validSales = useMemo(() => sales.filter(s => s.status !== OrderStatus.VOIDED), [sales]);
+  
+  // Filtered Sales for the History Table
+  const filteredHistory = useMemo(() => {
+    return sales.filter(s => {
+      const matchesSearch = s.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          s.tokenNumber.toString().includes(searchQuery) ||
+                          s.settledBy?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const saleDate = new Date(s.timestamp).toISOString().split('T')[0];
+      const matchesFrom = fromDate ? saleDate >= fromDate : true;
+      const matchesTo = toDate ? saleDate <= toDate : true;
+      
+      return matchesSearch && matchesFrom && matchesTo;
+    }).sort((a, b) => b.timestamp - a.timestamp);
+  }, [sales, searchQuery, fromDate, toDate]);
+
   const totalRevenue = validSales.reduce((acc, s) => acc + s.total, 0);
   const totalOrders = validSales.length;
   const voidedCount = sales.filter(s => s.status === OrderStatus.VOIDED).length;
@@ -33,7 +54,6 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
     return acc;
   }, {} as Record<PaymentMethod, number>);
 
-  // New logic: Revenue by Staff Member
   const revenueByStaff = validSales.reduce((acc, s) => {
     const staffName = s.settledBy || 'Unknown';
     acc[staffName] = (acc[staffName] || 0) + s.total;
@@ -47,8 +67,9 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
 
   // Cash Flow Calculations
   const cashSales = validSales.filter(s => s.paymentMethod === PaymentMethod.CASH);
-  const totalCashReceived = cashSales.reduce((acc, s) => acc + (s.cashReceived || s.total), 0);
-  const totalChangeGiven = cashSales.reduce((acc, s) => acc + (s.cashChange || 0), 0);
+  // Fix: Ensure cashReceived and cashChange are treated as numbers during reduction
+  const totalCashReceived = cashSales.reduce((acc, s) => acc + (Number(s.cashReceived) || s.total), 0);
+  const totalChangeGiven = cashSales.reduce((acc, s) => acc + (Number(s.cashChange) || 0), 0);
   const netCashFromSales = totalCashReceived - totalChangeGiven;
   const expectedDrawerCash = openingCash + netCashFromSales;
 
@@ -120,12 +141,14 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
                     <span className="w-6 h-6 flex items-center justify-center bg-zinc-800 rounded text-[10px] font-black text-zinc-500">{idx + 1}</span>
                     <span className="text-sm font-bold text-white uppercase">{staff.name}</span>
                   </div>
-                  <span className="text-lg font-black text-yellow-500">₹{staff.revenue.toFixed(2)}</span>
+                  {/* Fix: revenue is a number, toFixed is safe */}
+                  <span className="text-lg font-black text-yellow-500">₹{Number(staff.revenue).toFixed(2)}</span>
                 </div>
                 <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
                   <div 
                     className="bg-yellow-500 h-full rounded-full" 
-                    style={{ width: `${(staff.revenue / totalRevenue) * 100}%` }}
+                    // Fix: Ensure arithmetic on totalRevenue and revenue is treated correctly
+                    style={{ width: `${(Number(staff.revenue) / (totalRevenue || 1)) * 100}%` }}
                   />
                 </div>
               </div>
@@ -151,6 +174,108 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
                 );
               })}
             </div>
+        </div>
+      </div>
+
+      {/* Advanced Past Orders Search Section */}
+      <div className="bg-zinc-900 p-8 rounded-[3rem] border border-zinc-800 shadow-2xl space-y-8">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div>
+            <h3 className="text-xl font-black text-white uppercase tracking-tight">Search Past Orders</h3>
+            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-1">Audit historical data & filter by date</p>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1 max-w-4xl">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-zinc-600 uppercase ml-2">From Date</label>
+              <input 
+                type="date" 
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-zinc-600 uppercase ml-2">To Date</label>
+              <input 
+                type="date" 
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-zinc-600 uppercase ml-2">Global Search</label>
+              <input 
+                type="text" 
+                placeholder="ID, Token, or Staff..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-500"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Result Summary */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+           <div className="bg-black/40 p-4 rounded-2xl border border-zinc-800/50">
+             <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Results Found</p>
+             <p className="text-xl font-black text-white">{filteredHistory.length}</p>
+           </div>
+           <div className="bg-black/40 p-4 rounded-2xl border border-zinc-800/50">
+             <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Filtered Revenue</p>
+             <p className="text-xl font-black text-yellow-500">₹{filteredHistory.filter(s => s.status !== OrderStatus.VOIDED).reduce((a, b) => a + b.total, 0).toFixed(2)}</p>
+           </div>
+           <div className="bg-black/40 p-4 rounded-2xl border border-zinc-800/50">
+             <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">UPI Portion</p>
+             <p className="text-xl font-black text-blue-400">₹{filteredHistory.filter(s => s.paymentMethod === PaymentMethod.UPI && s.status !== OrderStatus.VOIDED).reduce((a, b) => a + b.total, 0).toFixed(2)}</p>
+           </div>
+           <div className="bg-black/40 p-4 rounded-2xl border border-zinc-800/50">
+             <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Cash Portion</p>
+             <p className="text-xl font-black text-green-400">₹{filteredHistory.filter(s => s.paymentMethod === PaymentMethod.CASH && s.status !== OrderStatus.VOIDED).reduce((a, b) => a + b.total, 0).toFixed(2)}</p>
+           </div>
+        </div>
+
+        <div className="bg-black/20 rounded-2xl border border-zinc-800 overflow-hidden">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-zinc-800/30 text-[9px] font-black uppercase text-zinc-500 tracking-widest">
+                <th className="p-4">Date & Time</th>
+                <th className="p-4">Token</th>
+                <th className="p-4">ID</th>
+                <th className="p-4">Staff</th>
+                <th className="p-4">Method</th>
+                <th className="p-4 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800/50">
+              {filteredHistory.length > 0 ? filteredHistory.map(sale => (
+                <tr key={sale.id} className={`hover:bg-white/5 transition-colors ${sale.status === OrderStatus.VOIDED ? 'opacity-40 grayscale italic' : ''}`}>
+                  <td className="p-4 text-xs font-mono text-zinc-400">
+                    {new Date(sale.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                  </td>
+                  <td className="p-4">
+                    <span className="font-black text-white">#{sale.tokenNumber}</span>
+                  </td>
+                  <td className="p-4 text-[10px] font-black text-zinc-500 uppercase">{sale.id}</td>
+                  <td className="p-4 text-xs font-bold text-zinc-300 uppercase">{sale.settledBy}</td>
+                  <td className="p-4">
+                    <span className="text-[9px] font-black uppercase bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700 text-zinc-400">{sale.paymentMethod}</span>
+                  </td>
+                  <td className="p-4 text-right">
+                    <span className={`text-sm font-black ${sale.status === OrderStatus.VOIDED ? 'text-zinc-600' : 'text-white'}`}>₹{sale.total.toFixed(2)}</span>
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={6} className="p-12 text-center">
+                    <p className="text-zinc-600 font-black uppercase text-[10px] tracking-widest">No matching history found</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

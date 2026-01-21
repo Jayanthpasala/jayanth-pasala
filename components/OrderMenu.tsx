@@ -53,6 +53,7 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
     onAdd(item);
     setLastAdded(item.name);
     setClickedId(item.id);
+    // Reset click animation state after 300ms
     setTimeout(() => setClickedId(null), 300);
   };
 
@@ -206,12 +207,12 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
               <button
                 disabled={isOutOfStock}
                 onClick={() => handleAddClick(item)}
-                className={`w-full group aspect-[4/5] flex flex-col items-center justify-between rounded-[2.5rem] p-6 transition-all duration-300 active:scale-90 shadow-xl overflow-hidden relative ${
+                className={`w-full group aspect-[4/5] flex flex-col items-center justify-between rounded-[2.5rem] p-6 transition-all duration-300 active:scale-90 shadow-xl overflow-hidden relative border-2 ${
                   isOutOfStock
-                    ? 'bg-zinc-950/50 border border-zinc-900 grayscale opacity-40 cursor-not-allowed'
+                    ? 'bg-zinc-950/50 border-zinc-900 grayscale opacity-40 cursor-not-allowed'
                     : isClicked 
-                      ? 'bg-yellow-500 border-yellow-400 scale-95' 
-                      : 'bg-[#1a1a1a] border border-zinc-800 hover:border-zinc-500'
+                      ? 'bg-yellow-500 border-yellow-300 scale-[1.05] z-10' 
+                      : 'bg-[#1a1a1a] border-zinc-800/80 hover:border-yellow-500/50 hover:bg-[#222]'
                 }`}
               >
                 {isOutOfStock && (
@@ -219,9 +220,14 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
                     <span className="bg-red-600 text-white text-[9px] font-black uppercase px-2 py-1 rounded-lg tracking-widest border border-white transform -rotate-12">Closed</span>
                   </div>
                 )}
+
+                {/* Feedback ripple effect on click */}
+                {isClicked && (
+                  <span className="absolute inset-0 bg-white/20 animate-ping rounded-[2.5rem] pointer-events-none"></span>
+                )}
                 
                 <div className={`text-[9px] font-black uppercase tracking-widest py-1 px-3 rounded-full mb-2 self-start ${
-                  isClicked ? 'bg-black/10 text-black' : 'bg-zinc-800 text-zinc-500'
+                  isClicked ? 'bg-black/20 text-black' : 'bg-zinc-800 text-zinc-500'
                 }`}>
                   {item.category}
                 </div>
@@ -233,7 +239,7 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
                 </div>
 
                 <div className={`w-full py-3 rounded-2xl font-black text-base flex items-center justify-center gap-1 transition-all ${
-                  isClicked ? 'bg-white/20 text-black' : 'bg-[#0d0d0d] text-yellow-500 group-hover:bg-black'
+                  isClicked ? 'bg-black/10 text-black' : 'bg-[#0d0d0d] text-yellow-500 group-hover:bg-black group-hover:text-yellow-400'
                 }`}>
                   <span className="text-[10px] opacity-60">₹</span>
                   {item.price.toFixed(0)}

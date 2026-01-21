@@ -23,6 +23,7 @@ const App: React.FC = () => {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginError, setLoginError] = useState('');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState<string>('Order Menu');
   const [inventory, setInventory] = useState<MenuItem[]>(INITIAL_MENU);
@@ -54,6 +55,7 @@ const App: React.FC = () => {
     setLoginEmail('');
     setCart([]);
     setShowLogoutConfirm(false);
+    setIsSidebarOpen(false);
   };
 
   const addToCart = useCallback((item: MenuItem) => {
@@ -115,6 +117,8 @@ const App: React.FC = () => {
     return session.role === UserRole.ADMIN ? [...workerTabs, ...adminTabs] : workerTabs;
   }, [session]);
 
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
   if (!session) {
     return (
       <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center p-6 font-sans">
@@ -154,57 +158,101 @@ const App: React.FC = () => {
               Sign In to Dashboard
             </button>
           </form>
-
-          <div className="text-center">
-            <p className="text-zinc-600 text-[9px] font-black uppercase tracking-widest">
-              Secured POS Environment v4.0.2
-            </p>
-          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#090909] text-zinc-100 overflow-hidden">
-      {/* Top Header - Zomato style */}
-      <header className="bg-[#111] border-b border-zinc-800/50 px-6 py-4 flex items-center justify-between z-50">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center font-black text-black text-sm">KC</div>
-            <h1 className="text-lg font-black tracking-tighter uppercase hidden sm:block">{settings.stallName}</h1>
+    <div className="flex flex-col h-screen bg-[#090909] text-zinc-100 overflow-hidden relative">
+      
+      {/* Sidebar Drawer */}
+      <div 
+        className={`fixed inset-0 z-[100] bg-black/80 backdrop-blur-md transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        onClick={toggleSidebar}
+      />
+      
+      <aside 
+        className={`fixed top-0 left-0 h-full w-[280px] bg-[#111] border-r border-zinc-800/50 z-[110] transition-transform duration-500 ease-in-out shadow-2xl flex flex-col ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+      >
+        <div className="p-8 border-b border-zinc-800/50 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center font-black text-black text-lg shadow-xl shadow-white/5">KC</div>
+            <span className="font-black text-lg uppercase tracking-tighter">Navigation</span>
           </div>
-          
-          <nav className="flex items-center gap-2 bg-black/40 p-1 rounded-2xl border border-white/5">
-            {tabs.map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all whitespace-nowrap ${
-                  activeTab === tab 
-                  ? 'bg-yellow-500 text-black' 
-                  : 'text-zinc-500 hover:text-white hover:bg-zinc-800'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </nav>
+          <button onClick={toggleSidebar} className="text-zinc-500 hover:text-white transition-colors">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
+          </button>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="text-right hidden md:block">
-            <div className="text-xs font-black uppercase text-white leading-none">{session.name}</div>
-            <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{session.role} MODE</div>
+        <nav className="flex-1 overflow-y-auto p-4 space-y-2">
+          <div className="px-4 mb-4">
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-2">Main Menu</p>
+          </div>
+          {tabs.map(tab => (
+            <button
+              key={tab}
+              onClick={() => {
+                setActiveTab(tab);
+                setIsSidebarOpen(false);
+              }}
+              className={`w-full text-left px-6 py-4 rounded-2xl text-xs font-black uppercase transition-all flex items-center gap-4 ${
+                activeTab === tab 
+                ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/10' 
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${activeTab === tab ? 'bg-black' : 'bg-zinc-800'}`}></span>
+              {tab}
+            </button>
+          ))}
+        </nav>
+
+        <div className="p-6 border-t border-zinc-800/50 space-y-4 bg-black/20">
+          <div className="flex items-center gap-3 px-2">
+            <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-black text-white border border-zinc-700">
+              {session.name.charAt(0)}
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase text-white leading-none">{session.name}</p>
+              <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{session.role}</p>
+            </div>
           </div>
           <button 
             onClick={() => setShowLogoutConfirm(true)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all border border-red-500/20"
+            className="w-full bg-red-500/10 text-red-500 border border-red-500/20 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            Logout Session
+          </button>
+        </div>
+      </aside>
+
+      {/* Top Header */}
+      <header className="bg-[#111] border-b border-zinc-800/50 px-6 py-4 flex items-center justify-between z-50">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={toggleSidebar}
+            className="w-12 h-12 flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white transition-all active:scale-90"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center font-black text-black text-sm">KC</div>
+            <h1 className="text-lg font-black tracking-tighter uppercase">{settings.stallName}</h1>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="bg-zinc-800/50 px-4 py-2 rounded-xl border border-zinc-700 hidden sm:flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">{activeTab}</span>
+          </div>
+          <div className="text-right hidden md:block">
+            <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">{session.role} MODE</div>
+          </div>
         </div>
       </header>
 
@@ -241,7 +289,7 @@ const App: React.FC = () => {
       {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="bg-[#1a1a1a] border border-zinc-800 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
+          <div className="bg-[#1a1a1a] border border-zinc-800 w-full max-sm:max-w-xs max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
             <div className="text-center space-y-4">
               <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-2">
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
