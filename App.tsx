@@ -1,6 +1,6 @@
 
-import React, { useState, useMemo, useCallback } from 'react';
-import { UserRole, MenuItem, CartItem, BillSettings, SaleRecord, PaymentMethod, OrderStatus, UserSession } from './types';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { UserRole, MenuItem, CartItem, BillSettings, SaleRecord, PaymentMethod, OrderStatus, UserSession, PrinterStatus } from './types';
 import { INITIAL_MENU, DEFAULT_SETTINGS, OWNER_EMAIL } from './constants';
 import OrderMenu from './components/OrderMenu';
 import ManageItems from './components/ManageItems';
@@ -31,6 +31,64 @@ const App: React.FC = () => {
   const [settings, setSettings] = useState<BillSettings>(DEFAULT_SETTINGS);
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [openingCash, setOpeningCash] = useState<number>(1000);
+  
+  // Real Printer Connectivity State
+  const [printerStatus, setPrinterStatus] = useState<PrinterStatus>(PrinterStatus.OFFLINE);
+  const [connectedPrinterName, setConnectedPrinterName] = useState<string>('NONE');
+
+  // Real USB Device Tracking
+  useEffect(() => {
+    if (!("usb" in navigator)) {
+      console.warn("WebUSB not supported in this browser");
+      return;
+    }
+
+    const updatePrinterStatus = async () => {
+      if (!settings.printerEnabled) {
+        setPrinterStatus(PrinterStatus.OFFLINE);
+        setConnectedPrinterName('DISABLED');
+        return;
+      }
+
+      try {
+        const devices = await navigator.usb.getDevices();
+        if (devices.length > 0) {
+          // Typically, POS printers have specific usage classes, but we'll show the first connected one
+          const printer = devices[0];
+          setPrinterStatus(PrinterStatus.CONNECTED);
+          setConnectedPrinterName(printer.productName || 'Thermal Printer');
+        } else {
+          setPrinterStatus(PrinterStatus.OFFLINE);
+          setConnectedPrinterName('NONE');
+        }
+      } catch (err) {
+        console.error("Error fetching USB devices:", err);
+      }
+    };
+
+    // Listen for physical connect/disconnect
+    navigator.usb.addEventListener('connect', updatePrinterStatus);
+    navigator.usb.addEventListener('disconnect', updatePrinterStatus);
+
+    updatePrinterStatus();
+
+    return () => {
+      navigator.usb.removeEventListener('connect', updatePrinterStatus);
+      navigator.usb.removeEventListener('disconnect', updatePrinterStatus);
+    };
+  }, [settings.printerEnabled]);
+
+  const handlePairPrinter = async () => {
+    try {
+      const device = await navigator.usb.requestDevice({ filters: [] });
+      if (device) {
+        setPrinterStatus(PrinterStatus.CONNECTED);
+        setConnectedPrinterName(device.productName || 'Thermal Printer');
+      }
+    } catch (err) {
+      console.log("User cancelled printer pairing or error occurred", err);
+    }
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -246,12 +304,29 @@ const App: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="bg-zinc-800/50 px-4 py-2 rounded-xl border border-zinc-700 hidden sm:flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">{activeTab}</span>
+          {/* Printer Status Indicator */}
+          <div className={`px-4 py-2 rounded-xl border flex items-center gap-3 transition-all duration-500 ${
+            printerStatus === PrinterStatus.CONNECTED ? 'bg-green-500/10 border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 
+            printerStatus === PrinterStatus.BUSY ? 'bg-yellow-500/10 border-yellow-500/30' : 
+            'bg-red-500/10 border-red-500/30'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${
+              printerStatus === PrinterStatus.CONNECTED ? 'bg-green-500 animate-pulse' : 
+              printerStatus === PrinterStatus.BUSY ? 'bg-yellow-500 animate-bounce' : 
+              'bg-red-500'
+            }`}></span>
+            <span className={`text-[9px] font-black uppercase tracking-widest ${
+              printerStatus === PrinterStatus.CONNECTED ? 'text-green-500' : 
+              printerStatus === PrinterStatus.BUSY ? 'text-yellow-500' : 
+              'text-red-500'
+            }`}>
+              PRINTER: {connectedPrinterName}
+            </span>
           </div>
-          <div className="text-right hidden md:block">
-            <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">{session.role} MODE</div>
+
+          <div className="bg-zinc-800/50 px-4 py-2 rounded-xl border border-zinc-700 hidden sm:flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+            <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">{activeTab}</span>
           </div>
         </div>
       </header>
@@ -269,6 +344,8 @@ const App: React.FC = () => {
               onCompleteSale={completeSale}
               settings={settings}
               nextTokenNumber={sales.length > 0 ? (sales[sales.length - 1].tokenNumber % 999) + 1 : 1}
+              printerStatus={printerStatus}
+              connectedPrinterName={connectedPrinterName}
             />
           )}
           {activeTab === 'Token Monitor' && <OrderMonitor sales={sales} onUpdateStatus={updateTokenStatus} />}
@@ -279,7 +356,9 @@ const App: React.FC = () => {
               settings={settings} 
               setSettings={setSettings} 
               openingCash={openingCash} 
-              setOpeningCash={setOpeningCash} 
+              setOpeningCash={setOpeningCash}
+              onPairPrinter={handlePairPrinter}
+              connectedPrinterName={connectedPrinterName}
             />
           )}
           {activeTab === 'Sales Report' && <SalesReport sales={sales} openingCash={openingCash} onUpdateOpeningCash={setOpeningCash} />}

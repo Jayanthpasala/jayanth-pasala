@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { MenuItem, CartItem, BillSettings, PaymentMethod } from '../types';
+import { MenuItem, CartItem, BillSettings, PaymentMethod, PrinterStatus } from '../types';
 import CurrentCart from './CurrentCart';
 
 interface OrderMenuProps {
@@ -12,6 +12,8 @@ interface OrderMenuProps {
   onCompleteSale: (total: number, paymentMethod: PaymentMethod, cashDetails?: { received: number, change: number }) => void;
   settings: BillSettings;
   nextTokenNumber: number;
+  printerStatus: PrinterStatus;
+  connectedPrinterName?: string;
 }
 
 const OrderMenu: React.FC<OrderMenuProps> = ({ 
@@ -22,7 +24,9 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
   onUpdateCartQty, 
   onCompleteSale, 
   settings, 
-  nextTokenNumber
+  nextTokenNumber,
+  printerStatus,
+  connectedPrinterName
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -53,7 +57,6 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
     onAdd(item);
     setLastAdded(item.name);
     setClickedId(item.id);
-    // Reset click animation state after 300ms
     setTimeout(() => setClickedId(null), 300);
   };
 
@@ -92,7 +95,7 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
         </div>
       </div>
 
-      {/* Cart Drawer Style Overlay */}
+      {/* Cart Drawer */}
       {showCart && (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-end sm:items-center justify-center">
           <div className="bg-[#111] w-full max-w-6xl h-[95vh] sm:h-[90vh] rounded-t-[3rem] sm:rounded-[3rem] border-t sm:border border-zinc-800 shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-20 duration-500">
@@ -101,6 +104,16 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
                 <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Current Order</h2>
                 <div className="bg-white text-black px-4 py-1 rounded-xl">
                   <span className="text-[10px] font-black uppercase">Token #{nextTokenNumber}</span>
+                </div>
+                <div className={`px-3 py-1 rounded-lg flex items-center gap-2 border ${
+                  printerStatus === PrinterStatus.CONNECTED 
+                  ? 'bg-green-500/10 border-green-500/30' 
+                  : 'bg-red-500/10 border-red-500/30'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${printerStatus === PrinterStatus.CONNECTED ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                  <span className={`text-[9px] font-black uppercase tracking-widest ${printerStatus === PrinterStatus.CONNECTED ? 'text-green-500' : 'text-red-500'}`}>
+                    {printerStatus === PrinterStatus.CONNECTED ? connectedPrinterName : 'Printer Offline'}
+                  </span>
                 </div>
               </div>
               <button 
@@ -118,6 +131,7 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
                 onComplete={handleSaleComplete}
                 settings={settings}
                 orderNo={nextTokenNumber}
+                printerStatus={printerStatus}
               />
             </div>
           </div>
@@ -180,7 +194,6 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
           </div>
         </div>
 
-        {/* Categories Bar */}
         <div className="flex flex-wrap items-center gap-3 overflow-x-auto pb-2 no-scrollbar">
           {categories.map(cat => (
             <button
@@ -220,24 +233,19 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
                     <span className="bg-red-600 text-white text-[9px] font-black uppercase px-2 py-1 rounded-lg tracking-widest border border-white transform -rotate-12">Closed</span>
                   </div>
                 )}
-
-                {/* Feedback ripple effect on click */}
                 {isClicked && (
                   <span className="absolute inset-0 bg-white/20 animate-ping rounded-[2.5rem] pointer-events-none"></span>
                 )}
-                
                 <div className={`text-[9px] font-black uppercase tracking-widest py-1 px-3 rounded-full mb-2 self-start ${
                   isClicked ? 'bg-black/20 text-black' : 'bg-zinc-800 text-zinc-500'
                 }`}>
                   {item.category}
                 </div>
-                
                 <div className={`text-lg font-black text-center leading-tight mb-4 flex-1 flex items-center transition-colors uppercase tracking-tight px-1 ${
                   isClicked ? 'text-black' : 'text-white'
                 }`}>
                   {item.name}
                 </div>
-
                 <div className={`w-full py-3 rounded-2xl font-black text-base flex items-center justify-center gap-1 transition-all ${
                   isClicked ? 'bg-black/10 text-black' : 'bg-[#0d0d0d] text-yellow-500 group-hover:bg-black group-hover:text-yellow-400'
                 }`}>

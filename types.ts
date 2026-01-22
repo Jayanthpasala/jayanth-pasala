@@ -17,6 +17,12 @@ export enum OrderStatus {
   VOIDED = 'VOIDED'
 }
 
+export enum PrinterStatus {
+  CONNECTED = 'CONNECTED',
+  OFFLINE = 'OFFLINE',
+  BUSY = 'BUSY'
+}
+
 export interface WorkerAccount {
   email: string;
   name: string;
@@ -47,6 +53,7 @@ export interface BillSettings {
   footerMessage: string;
   taxRate: number;
   workerAccounts: WorkerAccount[];
+  printerEnabled: boolean;
 }
 
 export interface SaleRecord {
@@ -59,5 +66,5 @@ export interface SaleRecord {
   cashReceived?: number;
   cashChange?: number;
   status: OrderStatus;
-  settledBy: string; // Name of the staff/admin who settled the bill
+  settledBy: string; 
 }

@@ -18,5 +18,6 @@ export const DEFAULT_SETTINGS: BillSettings = {
   taxRate: 5,
   workerAccounts: [
     { email: 'worker1@kapi.com', name: 'Staff A' }
-  ]
+  ],
+  printerEnabled: true
 };

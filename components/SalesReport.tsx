@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { SaleRecord, PaymentMethod, OrderStatus } from '../types';
+import { SaleRecord, PaymentMethod, OrderStatus, CartItem } from '../types';
 import { 
   BarChart, 
   Bar, 
@@ -30,8 +30,8 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
   // Only count sales that aren't VOIDED for general metrics
   const validSales = useMemo(() => sales.filter(s => s.status !== OrderStatus.VOIDED), [sales]);
   
-  // Filtered Sales for the History Table
-  const filteredHistory = useMemo(() => {
+  // Filtered Sales for the History Table AND Item Breakdown
+  const filteredSales = useMemo(() => {
     return sales.filter(s => {
       const matchesSearch = s.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           s.tokenNumber.toString().includes(searchQuery) ||
@@ -44,6 +44,25 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
       return matchesSearch && matchesFrom && matchesTo;
     }).sort((a, b) => b.timestamp - a.timestamp);
   }, [sales, searchQuery, fromDate, toDate]);
+
+  const validFilteredSales = useMemo(() => filteredSales.filter(s => s.status !== OrderStatus.VOIDED), [filteredSales]);
+
+  // Aggregate Item-wise Statistics
+  const itemStats = useMemo(() => {
+    const stats: Record<string, { name: string, qty: number, revenue: number, category: string }> = {};
+    
+    validFilteredSales.forEach(sale => {
+      sale.items.forEach(item => {
+        if (!stats[item.id]) {
+          stats[item.id] = { name: item.name, qty: 0, revenue: 0, category: item.category };
+        }
+        stats[item.id].qty += item.quantity;
+        stats[item.id].revenue += (item.price * item.quantity);
+      });
+    });
+
+    return Object.values(stats).sort((a, b) => b.revenue - a.revenue);
+  }, [validFilteredSales]);
 
   const totalRevenue = validSales.reduce((acc, s) => acc + s.total, 0);
   const totalOrders = validSales.length;
@@ -67,7 +86,6 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
 
   // Cash Flow Calculations
   const cashSales = validSales.filter(s => s.paymentMethod === PaymentMethod.CASH);
-  // Fix: Ensure cashReceived and cashChange are treated as numbers during reduction
   const totalCashReceived = cashSales.reduce((acc, s) => acc + (Number(s.cashReceived) || s.total), 0);
   const totalChangeGiven = cashSales.reduce((acc, s) => acc + (Number(s.cashChange) || 0), 0);
   const netCashFromSales = totalCashReceived - totalChangeGiven;
@@ -125,7 +143,52 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
         </div>
       </div>
 
-      {/* Staff and Payment Breakdown */}
+      {/* Item-wise Sales Breakdown Section */}
+      <div className="bg-zinc-900 p-8 rounded-[3rem] border border-zinc-800 shadow-2xl space-y-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-xl font-black text-white uppercase tracking-tight">Item-wise Sales Breakdown</h3>
+            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-1">Product performance ranking</p>
+          </div>
+          <span className="text-[9px] font-black text-blue-500 uppercase bg-blue-500/10 px-3 py-1 rounded border border-blue-500/20">
+            {itemStats.length} Unique Items Sold
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-6">
+          {itemStats.length > 0 ? itemStats.map((item, idx) => (
+            <div key={item.name} className="group flex items-center gap-6 p-4 rounded-2xl hover:bg-white/5 transition-all">
+              <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center font-black text-zinc-500 text-lg group-hover:bg-yellow-500 group-hover:text-black transition-colors shadow-lg">
+                {idx + 1}
+              </div>
+              <div className="flex-1 space-y-2">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block">{item.category}</span>
+                    <span className="text-sm font-black text-white uppercase">{item.name}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-lg font-black text-yellow-500 block">₹{item.revenue.toFixed(0)}</span>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase">{item.qty} Units</span>
+                  </div>
+                </div>
+                <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-yellow-500 rounded-full transition-all duration-1000"
+                    /* Fix: Use Number() to ensure operands are treated as numbers for the arithmetic operation */
+                    style={{ width: `${(Number(item.revenue) / (Number(itemStats[0]?.revenue) || 1)) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          )) : (
+            <div className="col-span-2 py-12 text-center">
+               <p className="text-zinc-600 font-black uppercase text-[10px] tracking-widest">No individual item data for the current filters</p>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-zinc-900 p-8 rounded-3xl border border-zinc-800 shadow-xl space-y-6">
           <div className="flex justify-between items-center">
@@ -141,13 +204,11 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
                     <span className="w-6 h-6 flex items-center justify-center bg-zinc-800 rounded text-[10px] font-black text-zinc-500">{idx + 1}</span>
                     <span className="text-sm font-bold text-white uppercase">{staff.name}</span>
                   </div>
-                  {/* Fix: revenue is a number, toFixed is safe */}
                   <span className="text-lg font-black text-yellow-500">₹{Number(staff.revenue).toFixed(2)}</span>
                 </div>
                 <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
                   <div 
                     className="bg-yellow-500 h-full rounded-full" 
-                    // Fix: Ensure arithmetic on totalRevenue and revenue is treated correctly
                     style={{ width: `${(Number(staff.revenue) / (totalRevenue || 1)) * 100}%` }}
                   />
                 </div>
@@ -221,19 +282,19 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
            <div className="bg-black/40 p-4 rounded-2xl border border-zinc-800/50">
              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Results Found</p>
-             <p className="text-xl font-black text-white">{filteredHistory.length}</p>
+             <p className="text-xl font-black text-white">{filteredSales.length}</p>
            </div>
            <div className="bg-black/40 p-4 rounded-2xl border border-zinc-800/50">
              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Filtered Revenue</p>
-             <p className="text-xl font-black text-yellow-500">₹{filteredHistory.filter(s => s.status !== OrderStatus.VOIDED).reduce((a, b) => a + b.total, 0).toFixed(2)}</p>
+             <p className="text-xl font-black text-yellow-500">₹{validFilteredSales.reduce((a, b) => a + b.total, 0).toFixed(2)}</p>
            </div>
            <div className="bg-black/40 p-4 rounded-2xl border border-zinc-800/50">
              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">UPI Portion</p>
-             <p className="text-xl font-black text-blue-400">₹{filteredHistory.filter(s => s.paymentMethod === PaymentMethod.UPI && s.status !== OrderStatus.VOIDED).reduce((a, b) => a + b.total, 0).toFixed(2)}</p>
+             <p className="text-xl font-black text-blue-400">₹{validFilteredSales.filter(s => s.paymentMethod === PaymentMethod.UPI).reduce((a, b) => a + b.total, 0).toFixed(2)}</p>
            </div>
            <div className="bg-black/40 p-4 rounded-2xl border border-zinc-800/50">
              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Cash Portion</p>
-             <p className="text-xl font-black text-green-400">₹{filteredHistory.filter(s => s.paymentMethod === PaymentMethod.CASH && s.status !== OrderStatus.VOIDED).reduce((a, b) => a + b.total, 0).toFixed(2)}</p>
+             <p className="text-xl font-black text-green-400">₹{validFilteredSales.filter(s => s.paymentMethod === PaymentMethod.CASH).reduce((a, b) => a + b.total, 0).toFixed(2)}</p>
            </div>
         </div>
 
@@ -250,7 +311,7 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/50">
-              {filteredHistory.length > 0 ? filteredHistory.map(sale => (
+              {filteredSales.length > 0 ? filteredSales.map(sale => (
                 <tr key={sale.id} className={`hover:bg-white/5 transition-colors ${sale.status === OrderStatus.VOIDED ? 'opacity-40 grayscale italic' : ''}`}>
                   <td className="p-4 text-xs font-mono text-zinc-400">
                     {new Date(sale.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
@@ -337,7 +398,7 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
       {/* Cash Edit Modal */}
       {isEditingCash && (
         <div className="fixed inset-0 z-[130] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-sm rounded-[2rem] overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+          <div className="bg-zinc-900 border border-zinc-800 w-full max-sm:max-w-xs max-w-sm rounded-[2rem] overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)]">
             <div className="p-8 space-y-6">
               <div className="text-center space-y-2">
                 <h3 className="text-xl font-black uppercase tracking-widest text-white">Adjust Drawer</h3>

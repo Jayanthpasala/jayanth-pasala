@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState } from 'react';
-import { CartItem, BillSettings, PaymentMethod } from '../types';
+import { CartItem, BillSettings, PaymentMethod, PrinterStatus } from '../types';
 
 interface CurrentCartProps {
   items: CartItem[];
@@ -8,11 +8,12 @@ interface CurrentCartProps {
   onUpdateQty: (id: string, delta: number, instructions?: string) => void;
   onComplete: (total: number, paymentMethod: PaymentMethod, cashDetails?: { received: number, change: number }) => void;
   settings: BillSettings;
-  orderNo: number; // Used as the Token Number
+  orderNo: number; 
+  printerStatus: PrinterStatus;
 }
 
 const CurrentCart: React.FC<CurrentCartProps> = ({ 
-  items, onRemove, onUpdateQty, onComplete, settings, orderNo 
+  items, onRemove, onUpdateQty, onComplete, settings, orderNo, printerStatus 
 }) => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
   const [discountValue, setDiscountValue] = useState<number>(0);
@@ -57,12 +58,9 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
 
   const handleProcessOrder = () => {
     if (items.length === 0) return;
-    
-    // Validate cash received if applicable
     if (paymentMethod === PaymentMethod.CASH && (cashReceived === '' || cashReceived < total)) {
       return;
     }
-
     setShowConfirmModal(true);
   };
 
@@ -70,7 +68,6 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
     const currencySymbol = "₹";
     const timestamp = new Date().toLocaleString();
 
-    // CUSTOMER RECEIPT CONTENT
     const customerItemsHtml = items.map(item => `
       <div class="item-row">
         <div class="item-name">
@@ -81,7 +78,6 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
       </div>
     `).join('');
 
-    // KITCHEN RECEIPT CONTENT (KOT)
     const kitchenItemsHtml = items.map(item => `
       <div class="item-row" style="font-size: 16px; font-weight: bold; border-bottom: 1px dashed #ccc; padding: 6px 0;">
         <span>${item.quantity} x ${item.name}</span>
@@ -182,7 +178,6 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
           ` : ''}
           <div class="divider"></div>
           <div class="center footer">${settings.footerMessage}</div>
-          <div class="center" style="font-size: 8px; margin-top: 10px; opacity: 0.5;">Thank you for your visit!</div>
         </body>
       </html>
     `;
@@ -395,34 +390,7 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
         </div>
       </div>
 
-      {/* Instruction Edit Modal */}
-      {instructionEditId && (
-        <div className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
-              <h3 className="text-lg font-black uppercase tracking-widest text-white">Instructions</h3>
-              <button onClick={() => setInstructionEditId(null)} className="text-zinc-500 hover:text-white">✕</button>
-            </div>
-            <div className="p-6 space-y-4">
-              <textarea 
-                rows={4}
-                value={tempInstruction}
-                onChange={(e) => setTempInstruction(e.target.value)}
-                placeholder="e.g. Extra spicy..."
-                className="w-full bg-black border border-zinc-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-yellow-500 transition-all resize-none"
-              />
-              <button 
-                onClick={handleSaveInstructions}
-                className="w-full py-4 rounded-xl bg-yellow-500 text-black font-black uppercase text-xs tracking-widest"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation Modal */}
+      {/* Confirmation Modal with Printer Warning */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-[130] bg-black/95 backdrop-blur-xl flex items-center justify-center p-6">
           <div className="bg-[#1a1a1a] border border-zinc-800 w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
@@ -436,6 +404,18 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
                 <h3 className="text-2xl font-black uppercase text-white tracking-tight">Confirm Order</h3>
                 <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest">Token #{orderNo} • {paymentMethod}</p>
               </div>
+
+              {printerStatus === PrinterStatus.OFFLINE && (
+                <div className="bg-red-500/10 border-2 border-red-500/30 p-4 rounded-2xl flex items-center gap-4">
+                  <div className="bg-red-500 text-white p-2 rounded-lg">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase text-red-500 tracking-widest">Printer Disconnected</p>
+                    <p className="text-[9px] text-zinc-400 font-bold">The receipt will not print. Proceed anyway?</p>
+                  </div>
+                </div>
+              )}
 
               <div className="bg-black/40 rounded-3xl p-6 border border-zinc-800 space-y-4">
                 <div className="flex justify-between items-center text-zinc-400">
@@ -454,11 +434,6 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
                     </div>
                   </>
                 )}
-                {paymentMethod !== PaymentMethod.CASH && (
-                  <div className="text-center py-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Waiting for {paymentMethod} Confirmation</span>
-                  </div>
-                )}
               </div>
 
               <div className="grid grid-cols-1 gap-3">
@@ -466,7 +441,7 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
                   onClick={executeFinalPrint}
                   className="w-full bg-green-500 text-black py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-green-400 active:scale-95 transition-all shadow-lg shadow-green-500/20"
                 >
-                  Print & Finalize Token
+                  {printerStatus === PrinterStatus.OFFLINE ? 'Confirm Without Printing' : 'Print & Finalize Token'}
                 </button>
                 <button 
                   onClick={() => setShowConfirmModal(false)}
