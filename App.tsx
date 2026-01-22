@@ -37,53 +37,55 @@ const App: React.FC = () => {
   const [connectedPrinterName, setConnectedPrinterName] = useState<string>('NONE');
 
   // Real USB Device Tracking
+  const updatePrinterStatus = useCallback(async () => {
+    if (!("usb" in (navigator as any))) return;
+    
+    if (!settings.printerEnabled) {
+      setPrinterStatus(PrinterStatus.OFFLINE);
+      setConnectedPrinterName('DISABLED');
+      return;
+    }
+
+    try {
+      const devices = await (navigator as any).usb.getDevices();
+      if (devices.length > 0) {
+        // Find a device that looks like a printer or just take the first paired one
+        const printer = devices[0];
+        setPrinterStatus(PrinterStatus.CONNECTED);
+        setConnectedPrinterName(printer.productName || `USB Device (${printer.vendorId})`);
+      } else {
+        setPrinterStatus(PrinterStatus.OFFLINE);
+        setConnectedPrinterName('NONE');
+      }
+    } catch (err) {
+      console.error("Error fetching USB devices:", err);
+      setPrinterStatus(PrinterStatus.OFFLINE);
+    }
+  }, [settings.printerEnabled]);
+
   useEffect(() => {
-    if (!("usb" in navigator)) {
+    if (!("usb" in (navigator as any))) {
       console.warn("WebUSB not supported in this browser");
       return;
     }
 
-    const updatePrinterStatus = async () => {
-      if (!settings.printerEnabled) {
-        setPrinterStatus(PrinterStatus.OFFLINE);
-        setConnectedPrinterName('DISABLED');
-        return;
-      }
-
-      try {
-        const devices = await navigator.usb.getDevices();
-        if (devices.length > 0) {
-          // Typically, POS printers have specific usage classes, but we'll show the first connected one
-          const printer = devices[0];
-          setPrinterStatus(PrinterStatus.CONNECTED);
-          setConnectedPrinterName(printer.productName || 'Thermal Printer');
-        } else {
-          setPrinterStatus(PrinterStatus.OFFLINE);
-          setConnectedPrinterName('NONE');
-        }
-      } catch (err) {
-        console.error("Error fetching USB devices:", err);
-      }
-    };
-
-    // Listen for physical connect/disconnect
-    navigator.usb.addEventListener('connect', updatePrinterStatus);
-    navigator.usb.addEventListener('disconnect', updatePrinterStatus);
+    (navigator as any).usb.addEventListener('connect', updatePrinterStatus);
+    (navigator as any).usb.addEventListener('disconnect', updatePrinterStatus);
 
     updatePrinterStatus();
 
     return () => {
-      navigator.usb.removeEventListener('connect', updatePrinterStatus);
-      navigator.usb.removeEventListener('disconnect', updatePrinterStatus);
+      (navigator as any).usb.removeEventListener('connect', updatePrinterStatus);
+      (navigator as any).usb.removeEventListener('disconnect', updatePrinterStatus);
     };
-  }, [settings.printerEnabled]);
+  }, [updatePrinterStatus]);
 
   const handlePairPrinter = async () => {
     try {
-      const device = await navigator.usb.requestDevice({ filters: [] });
+      // Requesting specifically for printers or any device
+      const device = await (navigator as any).usb.requestDevice({ filters: [] });
       if (device) {
-        setPrinterStatus(PrinterStatus.CONNECTED);
-        setConnectedPrinterName(device.productName || 'Thermal Printer');
+        await updatePrinterStatus();
       }
     } catch (err) {
       console.log("User cancelled printer pairing or error occurred", err);
@@ -359,6 +361,7 @@ const App: React.FC = () => {
               setOpeningCash={setOpeningCash}
               onPairPrinter={handlePairPrinter}
               connectedPrinterName={connectedPrinterName}
+              printerStatus={printerStatus}
             />
           )}
           {activeTab === 'Sales Report' && <SalesReport sales={sales} openingCash={openingCash} onUpdateOpeningCash={setOpeningCash} />}

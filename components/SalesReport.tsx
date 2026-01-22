@@ -61,7 +61,8 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
       });
     });
 
-    return Object.values(stats).sort((a, b) => b.revenue - a.revenue);
+    // Fix: Explicitly cast to Number to resolve arithmetic operation type errors
+    return Object.values(stats).sort((a, b) => Number(b.revenue) - Number(a.revenue));
   }, [validFilteredSales]);
 
   const totalRevenue = validSales.reduce((acc, s) => acc + s.total, 0);
@@ -82,7 +83,8 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
   const staffData = Object.entries(revenueByStaff).map(([name, revenue]) => ({
     name,
     revenue
-  })).sort((a, b) => b.revenue - a.revenue);
+  // Fix: Explicitly cast to Number to resolve arithmetic operation type errors on line 85
+  })).sort((a, b) => Number(b.revenue) - Number(a.revenue));
 
   // Cash Flow Calculations
   const cashSales = validSales.filter(s => s.paymentMethod === PaymentMethod.CASH);
@@ -175,7 +177,7 @@ const SalesReport: React.FC<SalesReportProps> = ({ sales, openingCash, onUpdateO
                 <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-yellow-500 rounded-full transition-all duration-1000"
-                    /* Fix: Use Number() to ensure operands are treated as numbers for the arithmetic operation */
+                    // Fix: Explicitly cast operands to number to ensure arithmetic operations work correctly in all environments
                     style={{ width: `${(Number(item.revenue) / (Number(itemStats[0]?.revenue) || 1)) * 100}%` }}
                   />
                 </div>
