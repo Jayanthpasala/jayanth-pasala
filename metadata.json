@@ -1,6 +1,6 @@
 {
-  "name": "sports meet kc high",
-  "description": "A high-contrast, tab-based Point of Sale system designed for food stalls with role-based access, inventory management, and thermal receipt printing.",
+  "name": "Kapi Coast POS Static",
+  "description": "A high-performance, high-contrast vanilla JS Point of Sale system. Designed for Vercel static hosting with zero build steps and full offline-first functionality.",
   "requestFramePermissions": [
     "usb",
     "bluetooth"

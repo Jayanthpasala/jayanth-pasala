@@ -9,7 +9,7 @@
       @media print {
         body * { visibility: hidden; }
         #receipt-print-area, #receipt-print-area * { visibility: visible; }
-        #receipt-print-area { position: absolute; left: 0; top: 0; width: 80mm; }
+        #receipt-print-area { position: absolute; left: 0; top: 0; width: 80mm; background: white; color: black; padding: 20px; }
       }
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -19,15 +19,15 @@
         margin: 0;
         font-family: system-ui, -apple-system, sans-serif;
       }
+      .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
     </style>
 <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react-dom": "https://esm.sh/react-dom@19.0.0",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "recharts": "https://esm.sh/recharts@2.12.7?deps=react@19.0.0,react-dom@19.0.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/"
   }
 }
@@ -35,6 +35,7 @@
 </head>
 <body>
     <div id="root"></div>
+    <!-- The application will be mounted here by index.tsx -->
     <script type="module" src="index.tsx"></script>
 </body>
 </html>

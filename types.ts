@@ -1,14 +1,4 @@
-
-export enum UserRole {
-  ADMIN = 'ADMIN',
-  WORKER = 'WORKER'
-}
-
-export enum PaymentMethod {
-  CASH = 'CASH',
-  CARD = 'CARD',
-  UPI = 'UPI'
-}
+// Unified types for the Kapi Coast POS application
 
 export enum OrderStatus {
   PENDING = 'PENDING',
@@ -17,21 +7,16 @@ export enum OrderStatus {
   VOIDED = 'VOIDED'
 }
 
+export enum PaymentMethod {
+  CASH = 'CASH',
+  CARD = 'CARD',
+  UPI = 'UPI'
+}
+
 export enum PrinterStatus {
+  DISCONNECTED = 'DISCONNECTED',
   CONNECTED = 'CONNECTED',
-  OFFLINE = 'OFFLINE',
-  BUSY = 'BUSY'
-}
-
-export interface WorkerAccount {
-  email: string;
-  name: string;
-}
-
-export interface UserSession {
-  email: string;
-  role: UserRole;
-  name: string;
+  ERROR = 'ERROR'
 }
 
 export interface MenuItem {
@@ -50,11 +35,8 @@ export interface CartItem extends MenuItem {
 
 export interface BillSettings {
   stallName: string;
-  footerMessage: string;
   taxRate: number;
-  workerAccounts: WorkerAccount[];
-  printerEnabled: boolean;
-  isPrintHub: boolean;
+  printerEnabled?: boolean;
 }
 
 export interface SaleRecord {
@@ -63,10 +45,9 @@ export interface SaleRecord {
   timestamp: number;
   items: CartItem[];
   total: number;
+  status: OrderStatus;
   paymentMethod: PaymentMethod;
+  settledBy?: string;
   cashReceived?: number;
   cashChange?: number;
-  status: OrderStatus;
-  settledBy: string; 
-  terminalId?: string;
 }
