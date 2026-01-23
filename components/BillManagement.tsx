@@ -4,11 +4,12 @@ import { SaleRecord, BillSettings } from '../types';
 
 interface BillManagementProps {
   sales: SaleRecord[];
-  setSales: React.Dispatch<React.SetStateAction<SaleRecord[]>>;
   settings: BillSettings;
+  onReprint: (sale: SaleRecord) => void;
+  onPhysicalPrint: (sale: SaleRecord) => void;
 }
 
-const BillManagement: React.FC<BillManagementProps> = ({ sales, setSales, settings }) => {
+const BillManagement: React.FC<BillManagementProps> = ({ sales, settings, onReprint, onPhysicalPrint }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSale, setSelectedSale] = useState<SaleRecord | null>(null);
 
@@ -17,88 +18,6 @@ const BillManagement: React.FC<BillManagementProps> = ({ sales, setSales, settin
     s.tokenNumber.toString().includes(searchTerm) ||
     s.settledBy?.toLowerCase().includes(searchTerm.toLowerCase())
   ).sort((a, b) => b.timestamp - a.timestamp);
-
-  const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to void this bill? This will affect sales reports.')) {
-      setSales(prev => prev.filter(s => s.id !== id));
-    }
-  };
-
-  const handleReprint = (sale: SaleRecord) => {
-    const currencySymbol = "₹";
-    const itemsHtml = sale.items.map(item => `
-      <div class="item-row">
-        <div class="item-name">
-          <span>${item.quantity}x ${item.name}</span>
-          ${item.instructions ? `<div class="item-note">Note: ${item.instructions}</div>` : ''}
-        </div>
-        <span class="item-total">${currencySymbol}${(item.price * item.quantity).toFixed(2)}</span>
-      </div>
-    `).join('');
-
-    const receiptHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            @page { size: 80mm auto; margin: 0; }
-            body { font-family: 'Courier New', Courier, monospace; width: 72mm; margin: 4mm auto; font-size: 12px; line-height: 1.2; color: #000; background: #fff; }
-            .center { text-align: center; }
-            .header { font-weight: bold; font-size: 16px; margin-bottom: 5px; }
-            .token-area { border: 3px solid #000; margin: 10px 0; padding: 10px; text-align: center; }
-            .token-label { font-size: 14px; font-weight: bold; text-transform: uppercase; }
-            .token-number { font-size: 48px; font-weight: 900; line-height: 1; margin: 5px 0; }
-            .divider { border-bottom: 1px dashed #000; margin: 10px 0; }
-            .item-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
-            .item-name { flex: 1; display: flex; flex-direction: column; }
-            .item-note { font-size: 10px; font-style: italic; margin-left: 10px; }
-            .item-total { width: 25mm; text-align: right; }
-            .totals { font-weight: bold; margin-top: 10px; border-top: 1px solid #000; padding-top: 5px; }
-            .footer { margin-top: 20px; font-style: italic; font-size: 10px; }
-            .copy-tag { margin-top: 5px; background: #eee; display: inline-block; padding: 2px 5px; font-size: 8px; font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <div class="center header">${settings.stallName.toUpperCase()}</div>
-          <div class="center copy-tag">DUPLICATE RECEIPT</div>
-          
-          <div class="token-area">
-            <div class="token-label">Token Number</div>
-            <div class="token-number">#${sale.tokenNumber}</div>
-          </div>
-
-          <div class="center">Order #${sale.id}</div>
-          <div class="center">Staff: ${sale.settledBy}</div>
-          <div class="center">${new Date(sale.timestamp).toLocaleString()}</div>
-          <div class="divider"></div>
-          ${itemsHtml}
-          <div class="divider"></div>
-          <div class="item-row totals">
-            <span>TOTAL PAID:</span>
-            <span>${currencySymbol}${sale.total.toFixed(2)}</span>
-          </div>
-          <div class="item-row" style="margin-top: 5px;">
-            <span>Payment Mode:</span>
-            <span>${sale.paymentMethod}</span>
-          </div>
-          <div class="divider"></div>
-          <div class="center footer">${settings.footerMessage}</div>
-        </body>
-      </html>
-    `;
-
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (printWindow) {
-      printWindow.document.write(receiptHtml);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 500);
-    }
-  };
 
   return (
     <div className="space-y-6 h-full flex flex-col">
@@ -161,17 +80,19 @@ const BillManagement: React.FC<BillManagementProps> = ({ sales, setSales, settin
                       Details
                     </button>
                     <button 
-                      onClick={() => handleReprint(sale)}
+                      onClick={() => onReprint(sale)}
                       className="text-[10px] font-black uppercase text-zinc-400 hover:text-white transition-colors"
                     >
                       Print
                     </button>
-                    <button 
-                      onClick={() => handleDelete(sale.id)}
-                      className="text-[10px] font-black uppercase text-red-500/50 hover:text-red-500 transition-colors"
-                    >
-                      Void
-                    </button>
+                    {settings.printerEnabled && (
+                      <button 
+                        onClick={() => onPhysicalPrint(sale)}
+                        className="text-[10px] font-black uppercase text-yellow-500/50 hover:text-yellow-500 transition-colors"
+                      >
+                        Physical
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -231,12 +152,22 @@ const BillManagement: React.FC<BillManagementProps> = ({ sales, setSales, settin
                   <span className="text-xl font-black uppercase">Final Total</span>
                   <span className="text-2xl font-black text-yellow-500">₹{selectedSale.total.toFixed(2)}</span>
                </div>
-               <button 
-                onClick={() => { handleReprint(selectedSale); setSelectedSale(null); }}
-                className="w-full bg-white text-black py-4 rounded-xl font-black uppercase tracking-widest hover:bg-yellow-500 transition-colors active:scale-95 shadow-lg"
-               >
-                 Reprint Receipt
-               </button>
+               <div className="grid grid-cols-2 gap-3">
+                 <button 
+                  onClick={() => { onReprint(selectedSale); setSelectedSale(null); }}
+                  className="bg-white text-black py-4 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-zinc-200 transition-colors shadow-lg"
+                 >
+                   Browser Print
+                 </button>
+                 {settings.printerEnabled && (
+                   <button 
+                    onClick={() => { onPhysicalPrint(selectedSale); setSelectedSale(null); }}
+                    className="bg-yellow-500 text-black py-4 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-yellow-400 transition-colors shadow-lg"
+                   >
+                     Physical Print
+                   </button>
+                 )}
+               </div>
             </div>
           </div>
         </div>

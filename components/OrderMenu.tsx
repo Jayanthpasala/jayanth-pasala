@@ -33,7 +33,6 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [clickedId, setClickedId] = useState<string | null>(null);
   const [showCart, setShowCart] = useState(false);
-  const [lastTokenCompleted, setLastTokenCompleted] = useState<number | null>(null);
 
   const cartCount = useMemo(() => cart.reduce((acc, i) => acc + i.quantity, 0), [cart]);
   const cartTotal = useMemo(() => cart.reduce((acc, i) => acc + (i.price * i.quantity), 0), [cart]);
@@ -60,14 +59,6 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
     setTimeout(() => setClickedId(null), 300);
   };
 
-  const handleSaleComplete = (total: number, method: PaymentMethod, cashDetails?: { received: number, change: number }) => {
-    const token = nextTokenNumber;
-    onCompleteSale(total, method, cashDetails);
-    setShowCart(false);
-    setLastTokenCompleted(token);
-    setTimeout(() => setLastTokenCompleted(null), 5000);
-  };
-
   useEffect(() => {
     if (lastAdded) {
       const timer = setTimeout(() => setLastAdded(null), 2000);
@@ -77,23 +68,7 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
 
   return (
     <div className="space-y-8 relative min-h-full pb-20">
-      {/* Success Token Notification */}
-      <div className={`fixed inset-0 z-[120] flex items-center justify-center pointer-events-none transition-all duration-700 ${
-        lastTokenCompleted ? 'opacity-100 backdrop-blur-md' : 'opacity-0 scale-90 pointer-events-none'
-      }`}>
-        <div className="bg-white text-black p-12 rounded-[4rem] shadow-[0_0_150px_rgba(255,255,255,0.2)] border-8 border-black flex flex-col items-center gap-6 animate-in zoom-in-50 duration-500">
-          <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center text-white mb-2">
-            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <div className="text-center">
-            <span className="text-xs font-black uppercase tracking-widest opacity-60">Customer Token</span>
-            <div className="text-[10rem] font-black tracking-tighter leading-none">#{lastTokenCompleted}</div>
-          </div>
-          <span className="text-sm font-black uppercase tracking-widest bg-black text-white px-6 py-2 rounded-2xl">Bill Confirmed</span>
-        </div>
-      </div>
+      {/* Success Notification is now Global in App.tsx */}
 
       {/* Cart Drawer */}
       {showCart && (
@@ -104,16 +79,6 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
                 <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Current Order</h2>
                 <div className="bg-white text-black px-4 py-1 rounded-xl">
                   <span className="text-[10px] font-black uppercase">Token #{nextTokenNumber}</span>
-                </div>
-                <div className={`px-3 py-1 rounded-lg flex items-center gap-2 border ${
-                  printerStatus === PrinterStatus.CONNECTED 
-                  ? 'bg-green-500/10 border-green-500/30' 
-                  : 'bg-red-500/10 border-red-500/30'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${printerStatus === PrinterStatus.CONNECTED ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-                  <span className={`text-[9px] font-black uppercase tracking-widest ${printerStatus === PrinterStatus.CONNECTED ? 'text-green-500' : 'text-red-500'}`}>
-                    {printerStatus === PrinterStatus.CONNECTED ? connectedPrinterName : 'Printer Offline'}
-                  </span>
                 </div>
               </div>
               <button 
@@ -128,7 +93,7 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
                 items={cart}
                 onRemove={onRemoveFromCart}
                 onUpdateQty={onUpdateCartQty}
-                onComplete={handleSaleComplete}
+                onComplete={onCompleteSale}
                 settings={settings}
                 orderNo={nextTokenNumber}
                 printerStatus={printerStatus}
@@ -176,10 +141,13 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
             </div>
 
             <button
-              onClick={() => cartCount > 0 && setShowCart(true)}
+              onClick={() => {
+                if (cartCount > 0) setShowCart(true);
+                else alert("Add items to cart first!");
+              }}
               className={`group flex items-center gap-6 px-8 h-16 rounded-[2rem] font-black uppercase tracking-widest transition-all ${
                 cartCount > 0 
-                ? 'bg-yellow-500 text-black shadow-2xl hover:bg-yellow-400 active:scale-95' 
+                ? 'bg-yellow-500 text-black shadow-2xl hover:bg-yellow-400 active:scale-95 cursor-pointer' 
                 : 'bg-zinc-900 text-zinc-700 border border-zinc-800 cursor-not-allowed grayscale'
               }`}
             >

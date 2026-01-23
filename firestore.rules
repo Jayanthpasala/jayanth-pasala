@@ -1,0 +1,19 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Basic rules for a POS system. 
+    // In production, you should restrict write access to authenticated users only.
+    match /stalls/{stallId} {
+      allow read, write: if true;
+      
+      match /config/{document=**} {
+        allow read, write: if true;
+      }
+      
+      match /sales/{saleId} {
+        allow read, write: if true;
+      }
+    }
+  }
+}

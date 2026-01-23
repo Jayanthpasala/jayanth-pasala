@@ -1,6 +1,8 @@
 
 import { MenuItem, BillSettings } from './types';
 
+export const OWNER_EMAIL = "jayanthpasala10@gmail.com"; 
+
 export const INITIAL_MENU: MenuItem[] = [
   { id: '1', name: 'Classic Burger', price: 85, category: 'Food', isAvailable: true },
   { id: '2', name: 'Cheese Fries', price: 40, category: 'Sides', isAvailable: true },
@@ -9,8 +11,6 @@ export const INITIAL_MENU: MenuItem[] = [
   { id: '5', name: 'Lemonade', price: 30, category: 'Drinks', isAvailable: true },
   { id: '6', name: 'Tacos (3pcs)', price: 90, category: 'Food', isAvailable: true },
 ];
-
-export const OWNER_EMAIL = "jayanthpasala10@gmail.com"; 
 
 export const DEFAULT_SETTINGS: BillSettings = {
   stallName: 'KAPI COAST',
