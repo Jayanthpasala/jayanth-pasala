@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { SaleRecord, OrderStatus, CartItem } from '../types';
+import { SaleRecord, OrderStatus, CartItem } from '../types.ts';
 
 interface OrderMonitorProps {
   sales: SaleRecord[];

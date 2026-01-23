@@ -1,6 +1,5 @@
-
 import React, { useMemo, useState } from 'react';
-import { CartItem, BillSettings, PaymentMethod, PrinterStatus } from '../types';
+import { CartItem, BillSettings, PaymentMethod, PrinterStatus } from '../types.ts';
 
 interface CurrentCartProps {
   items: CartItem[];

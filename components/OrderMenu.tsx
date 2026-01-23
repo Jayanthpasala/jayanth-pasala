@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
-import { MenuItem, CartItem, BillSettings, PaymentMethod, PrinterStatus } from '../types';
-import CurrentCart from './CurrentCart';
+import { MenuItem, CartItem, BillSettings, PaymentMethod, PrinterStatus } from '../types.ts';
+import CurrentCart from './CurrentCart.tsx';
 
 interface OrderMenuProps {
   items: MenuItem[];
@@ -68,8 +67,6 @@ const OrderMenu: React.FC<OrderMenuProps> = ({
 
   return (
     <div className="space-y-8 relative min-h-full pb-20">
-      {/* Success Notification is now Global in App.tsx */}
-
       {/* Cart Drawer */}
       {showCart && (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-end sm:items-center justify-center">

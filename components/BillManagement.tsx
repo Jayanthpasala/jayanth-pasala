@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { SaleRecord, BillSettings } from '../types';
+import { SaleRecord, BillSettings } from '../types.ts';
 
 interface BillManagementProps {
   sales: SaleRecord[];

@@ -9,27 +9,22 @@ import BillManagement from './components/BillManagement.tsx';
 import OrderMonitor from './components/OrderMonitor.tsx';
 
 const App: React.FC = () => {
-  // Authentication & Session
   const [session] = useState<UserSession | null>({
     email: OWNER_EMAIL,
     role: UserRole.ADMIN,
     name: 'Owner'
   });
 
-  // UI State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('Order Menu');
   const [lastTokenCompleted, setLastTokenCompleted] = useState<number | null>(null);
   const [printQueue, setPrintQueue] = useState<SaleRecord | null>(null);
-  const [syncStatus] = useState<'LOCAL'>('LOCAL');
 
-  // Hardware/Printer Refs & State
   const activeDeviceRef = useRef<any>(null);
   const [printerStatus, setPrinterStatus] = useState<PrinterStatus>(PrinterStatus.OFFLINE);
   const [connectedPrinterName, setConnectedPrinterName] = useState<string>('NO PRINTER');
   const [printError, setPrintError] = useState<string | null>(null);
 
-  // Terminal Identification
   const [terminalName, setTerminalName] = useState(() => {
     const saved = localStorage.getItem('kapi_terminal_name');
     if (saved) return saved;
@@ -37,20 +32,25 @@ const App: React.FC = () => {
     return `TERM-${randomId}`;
   });
 
-  // Database States (now Local-Only)
   const [inventory, setInventory] = useState<MenuItem[]>(() => {
-    const saved = localStorage.getItem('kapi_inventory');
-    return saved ? JSON.parse(saved) : INITIAL_MENU;
+    try {
+      const saved = localStorage.getItem('kapi_inventory');
+      return saved ? JSON.parse(saved) : INITIAL_MENU;
+    } catch { return INITIAL_MENU; }
   });
 
   const [settings, setSettings] = useState<BillSettings>(() => {
-    const saved = localStorage.getItem('kapi_settings');
-    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+    try {
+      const saved = localStorage.getItem('kapi_settings');
+      return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+    } catch { return DEFAULT_SETTINGS; }
   });
 
   const [sales, setSales] = useState<SaleRecord[]>(() => {
-    const saved = localStorage.getItem('kapi_sales');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('kapi_sales');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
   });
 
   const [openingCash, setOpeningCash] = useState<number>(() => {
@@ -60,26 +60,11 @@ const App: React.FC = () => {
 
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  // Persistence Effects
-  useEffect(() => {
-    localStorage.setItem('kapi_inventory', JSON.stringify(inventory));
-  }, [inventory]);
-
-  useEffect(() => {
-    localStorage.setItem('kapi_settings', JSON.stringify(settings));
-  }, [settings]);
-
-  useEffect(() => {
-    localStorage.setItem('kapi_sales', JSON.stringify(sales));
-  }, [sales]);
-
-  useEffect(() => {
-    localStorage.setItem('kapi_opening_cash', openingCash.toString());
-  }, [openingCash]);
-
-  useEffect(() => {
-    localStorage.setItem('kapi_terminal_name', terminalName);
-  }, [terminalName]);
+  useEffect(() => { localStorage.setItem('kapi_inventory', JSON.stringify(inventory)); }, [inventory]);
+  useEffect(() => { localStorage.setItem('kapi_settings', JSON.stringify(settings)); }, [settings]);
+  useEffect(() => { localStorage.setItem('kapi_sales', JSON.stringify(sales)); }, [sales]);
+  useEffect(() => { localStorage.setItem('kapi_opening_cash', openingCash.toString()); }, [openingCash]);
+  useEffect(() => { localStorage.setItem('kapi_terminal_name', terminalName); }, [terminalName]);
 
   const navigationTabs = useMemo(() => {
     if (!session) return [];
@@ -156,10 +141,8 @@ const App: React.FC = () => {
 
   const completeSale = useCallback((total: number, paymentMethod: PaymentMethod, cashDetails?: { received: number, change: number }) => {
     if (!session) return;
-    
     const nextToken = sales.length > 0 ? (sales[0].tokenNumber % 999) + 1 : 1;
     const saleId = `KC-${Date.now()}`;
-    
     const record: SaleRecord = {
       id: saleId,
       tokenNumber: Number(nextToken),
@@ -175,38 +158,20 @@ const App: React.FC = () => {
         cashChange: Number(cashDetails.change)
       } : {})
     };
-
     setSales(prev => [record, ...prev]);
     setLastTokenCompleted(nextToken);
     setTimeout(() => setLastTokenCompleted(null), 2500);
     setCart([]);
     setActiveTab('Token Monitor');
-    
-    if (settings.isPrintHub || settings.printerEnabled) {
-      executePhysicalPrint(record);
-    }
+    if (settings.isPrintHub || settings.printerEnabled) executePhysicalPrint(record);
   }, [cart, sales, session, settings, terminalName, executePhysicalPrint]);
-
-  const handleUpdateInventory = (val: MenuItem[] | ((prev: MenuItem[]) => MenuItem[])) => {
-    setInventory(typeof val === 'function' ? val(inventory) : val);
-  };
 
   return (
     <div className="flex flex-col h-screen bg-[#090909] text-zinc-100 overflow-hidden relative font-sans">
-      <div 
-        className={`fixed inset-0 z-[200] flex items-center justify-center transition-all duration-300 ${
-          lastTokenCompleted ? 'opacity-100 backdrop-blur-md pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'
-        }`}
-        onClick={(e) => { if (e.target === e.currentTarget) setLastTokenCompleted(null); }}
-      >
+      <div className={`fixed inset-0 z-[200] flex items-center justify-center transition-all duration-300 ${lastTokenCompleted ? 'opacity-100 backdrop-blur-md pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`} onClick={(e) => { if (e.target === e.currentTarget) setLastTokenCompleted(null); }}>
         <div className="bg-white text-black p-10 rounded-[3rem] shadow-[0_0_100px_rgba(255,255,255,0.15)] border-4 border-black flex flex-col items-center gap-4 animate-in zoom-in-95 duration-200 w-full max-w-sm mx-4">
-          <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white mb-1">
-            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7" /></svg>
-          </div>
-          <div className="text-center">
-            <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Token Issued</span>
-            <div className="text-8xl font-black tracking-tighter leading-none">#{lastTokenCompleted}</div>
-          </div>
+          <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white mb-1"><svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7" /></svg></div>
+          <div className="text-center"><span className="text-[10px] font-black uppercase tracking-widest opacity-40">Token Issued</span><div className="text-8xl font-black tracking-tighter leading-none">#{lastTokenCompleted}</div></div>
           <div className="flex flex-col gap-2 w-full mt-4">
             <button onClick={() => { setActiveTab('Order Menu'); setLastTokenCompleted(null); }} className="w-full bg-yellow-500 text-black py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-yellow-400 active:scale-95 transition-all">Next Order</button>
             <button onClick={() => { setActiveTab('Bill Management'); setLastTokenCompleted(null); }} className="w-full bg-zinc-100 text-black py-4 rounded-2xl font-black uppercase text-xs tracking-widest border border-zinc-200 hover:bg-zinc-200 active:scale-95 transition-all">Go to Billing</button>
@@ -221,9 +186,7 @@ const App: React.FC = () => {
           </button>
           <div className="flex flex-col">
             <h1 className="text-sm font-black tracking-tight uppercase leading-none">{settings.stallName}</h1>
-            <span className="text-[9px] font-black uppercase tracking-widest mt-1 text-zinc-500">
-              Local Mode (No Cloud)
-            </span>
+            <span className="text-[9px] font-black uppercase tracking-widest mt-1 text-zinc-500">Local Mode (No Cloud)</span>
           </div>
         </div>
         <div className="px-5 py-2.5 rounded-2xl border bg-zinc-900 border-zinc-800">
@@ -256,57 +219,24 @@ const App: React.FC = () => {
           {activeTab === 'Order Menu' && <OrderMenu items={inventory} onAdd={item => setCart([...cart, {...item, quantity: 1}])} cart={cart} onRemoveFromCart={id => setCart(cart.filter(i => i.id !== id))} onUpdateCartQty={(id, delta) => setCart(cart.map(i => i.id === id ? {...i, quantity: Math.max(1, i.quantity + delta)} : i))} onCompleteSale={completeSale} settings={settings} nextTokenNumber={sales.length > 0 ? (sales[0].tokenNumber % 999) + 1 : 1} printerStatus={printerStatus} connectedPrinterName={connectedPrinterName} />}
           {activeTab === 'Token Monitor' && <OrderMonitor sales={sales} onUpdateStatus={updateSaleStatus} />}
           {activeTab === 'Bill Management' && <BillManagement sales={sales} settings={settings} onReprint={handleBrowserPrint} onPhysicalPrint={executePhysicalPrint} />}
-          {activeTab === 'Manage Items' && <ManageItems items={inventory} setItems={handleUpdateInventory} />}
-          {activeTab === 'Bill Settings' && <BillSettingsView settings={settings} setSettings={setSettings} openingCash={openingCash} setOpeningCash={setOpeningCash} connectedPrinterName={connectedPrinterName} printerStatus={printerStatus} currentTerminalName={terminalName} onUpdateTerminalName={setTerminalName} onUpdatePrinter={(d, n, s) => { activeDeviceRef.current = d; setConnectedPrinterName(n); setPrinterStatus(s); }} onTestPrint={() => { executePhysicalPrint({ id: 'TEST', tokenNumber: 0, timestamp: Date.now(), items: [], total: 0, paymentMethod: PaymentMethod.CASH, status: OrderStatus.SERVED, settledBy: 'Owner' }); }} />}
+          {activeTab === 'Manage Items' && <ManageItems items={inventory} setItems={setInventory} />}
+          {activeTab === 'Bill Settings' && <BillSettingsView settings={settings} setSettings={setSettings} openingCash={openingCash} setOpeningCash={setOpeningCash} connectedPrinterName={connectedPrinterName} printerStatus={printerStatus} currentTerminalName={terminalName} onUpdateTerminalName={setTerminalName} onUpdatePrinter={(d, n, s) => { activeDeviceRef.current = d; setConnectedPrinterName(n); setPrinterStatus(s); }} onTestPrint={() => { executePhysicalPrint({ id: 'TEST', tokenNumber: 0, timestamp: Date.now(), items: [], total: 0, paymentMethod: PaymentMethod.CASH, status: OrderStatus.SERVED, settledBy: 'Owner' }); }} onResetData={() => { if(confirm('Wipe ALL sales and items?')) { setSales([]); setInventory(INITIAL_MENU); localStorage.clear(); window.location.reload(); } }} />}
           {activeTab === 'Sales Report' && <SalesReport sales={sales} openingCash={openingCash} onUpdateOpeningCash={setOpeningCash} />}
         </div>
       </main>
 
       {printQueue && (
         <div className="hidden print:block fixed inset-0 bg-white text-black p-8 font-mono text-[10px] z-[9999]">
-          <div className="text-center border-b-2 border-black pb-4 mb-4">
-            <h1 className="text-2xl font-bold uppercase tracking-tighter">{settings.stallName}</h1>
-            <p className="text-[10px]">{new Date(printQueue.timestamp).toLocaleString()}</p>
-          </div>
-          <div className="text-center mb-6">
-            <p className="text-[12px] font-bold uppercase tracking-widest opacity-60">Token Number</p>
-            <p className="text-7xl font-black">#{printQueue.tokenNumber}</p>
-            <p className="text-[8px] opacity-40 uppercase tracking-widest mt-1">ID: {printQueue.id}</p>
-          </div>
+          <div className="text-center border-b-2 border-black pb-4 mb-4"><h1 className="text-2xl font-bold uppercase tracking-tighter">{settings.stallName}</h1><p className="text-[10px]">{new Date(printQueue.timestamp).toLocaleString()}</p></div>
+          <div className="text-center mb-6"><p className="text-[12px] font-bold uppercase tracking-widest opacity-60">Token Number</p><p className="text-7xl font-black">#{printQueue.tokenNumber}</p></div>
           <div className="border-y border-black py-2 mb-4">
             <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-black text-[9px] font-black uppercase">
-                  <th className="pb-1">Item</th>
-                  <th className="pb-1 text-center">Qty</th>
-                  <th className="pb-1 text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-200">
-                {printQueue.items.map((item, idx) => (
-                  <tr key={idx} className="text-[10px]">
-                    <td className="py-2 font-bold uppercase">{item.name}</td>
-                    <td className="py-2 text-center">{item.quantity}</td>
-                    <td className="py-2 text-right">₹{(item.price * item.quantity).toFixed(0)}</td>
-                  </tr>
-                ))}
-              </tbody>
+              <thead><tr className="border-b border-black text-[9px] font-black uppercase"><th className="pb-1">Item</th><th className="pb-1 text-center">Qty</th><th className="pb-1 text-right">Amount</th></tr></thead>
+              <tbody>{printQueue.items.map((item, idx) => (<tr key={idx} className="text-[10px]"><td className="py-2 font-bold uppercase">{item.name}</td><td className="py-2 text-center">{item.quantity}</td><td className="py-2 text-right">₹{(item.price * item.quantity).toFixed(0)}</td></tr>))}</tbody>
             </table>
           </div>
-          <div className="flex justify-between items-center text-lg font-black uppercase">
-            <span>Total Payable</span>
-            <span>₹{printQueue.total.toFixed(0)}</span>
-          </div>
-          {printQueue.paymentMethod === PaymentMethod.CASH && printQueue.cashReceived !== undefined && (
-            <div className="mt-2 space-y-1 text-[9px] uppercase font-bold text-right">
-              <p>Cash Received: ₹{printQueue.cashReceived.toFixed(0)}</p>
-              <p>Change Returned: ₹{printQueue.cashChange?.toFixed(0)}</p>
-            </div>
-          )}
-          <div className="mt-12 text-center border-t border-black pt-4">
-            <p className="text-[10px] font-bold uppercase leading-tight">{settings.footerMessage}</p>
-            <p className="text-[8px] mt-4 opacity-50 uppercase tracking-widest">Served by {printQueue.settledBy}</p>
-          </div>
+          <div className="flex justify-between items-center text-lg font-black uppercase"><span>Total Payable</span><span>₹{printQueue.total.toFixed(0)}</span></div>
+          <div className="mt-12 text-center border-t border-black pt-4"><p className="text-[10px] font-bold uppercase leading-tight">{settings.footerMessage}</p></div>
         </div>
       )}
     </div>

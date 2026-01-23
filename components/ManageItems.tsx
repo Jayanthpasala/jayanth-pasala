@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { MenuItem } from '../types';
+import { MenuItem } from '../types.ts';
 
 interface ManageItemsProps {
   items: MenuItem[];
