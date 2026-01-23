@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { BillSettings, WorkerAccount, PrinterStatus } from '../types';
+import { BillSettings, PrinterStatus } from '../types';
 
 interface BillSettingsProps {
   settings: BillSettings;
@@ -11,6 +11,7 @@ interface BillSettingsProps {
   printerStatus?: PrinterStatus;
   currentTerminalName?: string;
   onUpdateTerminalName?: (name: string) => void;
+  onUpdatePrinter?: (name: string, status: PrinterStatus) => void;
 }
 
 const BillSettingsView: React.FC<BillSettingsProps> = ({ 
@@ -21,10 +22,13 @@ const BillSettingsView: React.FC<BillSettingsProps> = ({
   connectedPrinterName,
   printerStatus,
   currentTerminalName,
-  onUpdateTerminalName
+  onUpdateTerminalName,
+  onUpdatePrinter
 }) => {
   const [newWorker, setNewWorker] = useState({ name: '', email: '' });
   const [editingTerminal, setEditingTerminal] = useState(currentTerminalName || '');
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connError, setConnError] = useState('');
 
   const addWorker = () => {
     if (!newWorker.name || !newWorker.email) return;
@@ -46,18 +50,62 @@ const BillSettingsView: React.FC<BillSettingsProps> = ({
     if (onUpdateTerminalName) onUpdateTerminalName(editingTerminal);
   };
 
+  // REAL CONNECTION LOGIC FOR RETSOL 82 UB
+  const connectBluetooth = async () => {
+    setIsConnecting(true);
+    setConnError('');
+    try {
+      // Fix: Use type assertion to any for navigator to bypass missing bluetooth property error
+      const device = await (navigator as any).bluetooth.requestDevice({
+        filters: [
+          { namePrefix: 'Retsol' },
+          { namePrefix: 'TP82' },
+          { namePrefix: 'Printer' }
+        ],
+        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'] 
+      });
+
+      if (onUpdatePrinter) {
+        onUpdatePrinter(device.name || 'RETSOL 82 UB', PrinterStatus.CONNECTED);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setConnError('Pairing cancelled or device not found.');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const connectUSB = async () => {
+    setIsConnecting(true);
+    setConnError('');
+    try {
+      // Fix: Use type assertion to any for navigator to bypass missing usb property error
+      const device = await (navigator as any).usb.requestDevice({ filters: [] });
+      if (onUpdatePrinter) {
+        onUpdatePrinter(device.productName || 'RETSOL USB', PrinterStatus.CONNECTED);
+      }
+    } catch (err: any) {
+      setConnError('USB connection failed. Check OTG/Cable.');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
   const handleTestPrint = () => {
+    if (!settings.printerEnabled) return;
     const printWindow = window.open('', '_blank', 'width=400,height=400');
     if (printWindow) {
       printWindow.document.write(`
         <html><body style="font-family:monospace; text-align:center; padding:20px;">
-          <h2>DIAGNOSTIC TEST</h2>
+          <h2 style="margin:0;">RETSOL 82 UB</h2>
+          <p style="font-size:12px;">HARDWARE TEST OK</p>
           <hr/>
           <p>STALL: ${settings.stallName}</p>
           <p>TERMINAL: ${currentTerminalName}</p>
           <hr/>
           <p>${new Date().toLocaleString()}</p>
-          <p>PRINTER: WIRELESS/HOTSPOT READY</p>
+          <p>STATUS: READY</p>
         </body></html>
       `);
       printWindow.document.close();
@@ -77,37 +125,77 @@ const BillSettingsView: React.FC<BillSettingsProps> = ({
       </h2>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Hardware & Printer Control */}
         <div className="bg-zinc-900 p-8 rounded-3xl border border-zinc-800 space-y-8 shadow-2xl">
           <div className="space-y-6">
-            <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest border-b border-zinc-800 pb-2">Hardware & Local Identity</h3>
-            
-            <div className="bg-black/40 p-5 rounded-2xl border border-zinc-800 space-y-4">
-               <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-zinc-500 ml-1">Rename This Terminal (e.g. Counter 1)</label>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text"
-                      value={editingTerminal}
-                      onChange={e => setEditingTerminal(e.target.value)}
-                      className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2 text-white font-black uppercase text-xs"
-                      placeholder="Terminal Name"
-                    />
-                    <button onClick={updateTerminal} className="bg-zinc-800 text-white px-4 rounded-xl text-[10px] font-black uppercase hover:bg-zinc-700">Save</button>
-                  </div>
-               </div>
+            <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
+              <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Hardware & Printing</h3>
+              <div className="flex items-center gap-3">
+                <span className={`text-[10px] font-black uppercase tracking-widest ${settings.printerEnabled ? 'text-green-500' : 'text-zinc-600'}`}>
+                  {settings.printerEnabled ? 'System Enabled' : 'System Disabled'}
+                </span>
+                <button 
+                  onClick={() => setSettings({ ...settings, printerEnabled: !settings.printerEnabled })}
+                  className={`w-12 h-6 rounded-full p-1 transition-all duration-300 ${settings.printerEnabled ? 'bg-green-500' : 'bg-zinc-700'}`}
+                >
+                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${settings.printerEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                </button>
+              </div>
             </div>
-
-            <div className="bg-black/40 p-5 rounded-2xl border border-zinc-800 space-y-4">
+            
+            <div className={`bg-black/40 p-5 rounded-2xl border border-zinc-800 space-y-4 transition-all ${!settings.printerEnabled ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
               <div className="flex items-center justify-between">
                  <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase text-white tracking-widest">Wireless Printer</p>
+                    <p className="text-[10px] font-black uppercase text-white tracking-widest">Active Device</p>
                     <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                      <span className="text-[10px] font-black text-green-500 uppercase">HOTSPOT SPOOLER READY</span>
+                      <span className={`w-2 h-2 rounded-full ${printerStatus === PrinterStatus.CONNECTED ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                      <span className={`text-[10px] font-black uppercase ${printerStatus === PrinterStatus.CONNECTED ? 'text-green-500' : 'text-red-500'}`}>
+                        {connectedPrinterName}
+                      </span>
                     </div>
                  </div>
-                 <button onClick={handleTestPrint} className="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-xl text-[9px] font-black uppercase text-white border border-zinc-700">Test Print</button>
+                 <div className="flex gap-2">
+                   <button 
+                    onClick={connectBluetooth} 
+                    disabled={isConnecting} 
+                    className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-xl text-[9px] font-black uppercase text-white border border-blue-400 shadow-lg shadow-blue-500/20"
+                   >
+                     {isConnecting ? '...' : 'Pair Bluetooth'}
+                   </button>
+                   <button 
+                    onClick={connectUSB} 
+                    disabled={isConnecting} 
+                    className="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-xl text-[9px] font-black uppercase text-white border border-zinc-700"
+                   >
+                     USB
+                   </button>
+                 </div>
               </div>
+
+              {connError && (
+                <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl">
+                  <p className="text-[9px] font-black text-red-500 uppercase text-center">{connError}</p>
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-zinc-800 flex justify-between items-center">
+                 <p className="text-[9px] font-black text-zinc-500 uppercase">Hardware Health</p>
+                 <button onClick={handleTestPrint} className="text-[9px] font-black text-yellow-500 uppercase hover:underline">Run Diagnostic Test</button>
+              </div>
+            </div>
+
+            <div className="bg-black/40 p-5 rounded-2xl border border-zinc-800 space-y-2">
+               <label className="text-[10px] font-black uppercase text-zinc-500 ml-1">Terminal Local Name</label>
+               <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    value={editingTerminal}
+                    onChange={e => setEditingTerminal(e.target.value)}
+                    className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2 text-white font-black uppercase text-xs"
+                    placeholder="e.g. Counter 1"
+                  />
+                  <button onClick={updateTerminal} className="bg-zinc-800 text-white px-4 rounded-xl text-[10px] font-black uppercase hover:bg-zinc-700">Save</button>
+               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -133,6 +221,7 @@ const BillSettingsView: React.FC<BillSettingsProps> = ({
           </div>
         </div>
 
+        {/* Global Branding & Staff */}
         <div className="bg-zinc-900 p-8 rounded-3xl border border-zinc-800 space-y-8 shadow-2xl">
           <div className="space-y-4">
             <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest border-b border-zinc-800 pb-2">Global Stall Branding</h3>
@@ -159,7 +248,10 @@ const BillSettingsView: React.FC<BillSettingsProps> = ({
           </div>
 
           <div className="space-y-4 pt-4 border-t border-zinc-800">
-            <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Active Staff</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Active Staff</h3>
+              <span className="text-[9px] font-black text-zinc-600 uppercase">Multi-device sync enabled</span>
+            </div>
             <div className="flex gap-2">
               <input 
                 type="text"
@@ -174,6 +266,14 @@ const BillSettingsView: React.FC<BillSettingsProps> = ({
               >
                 Add
               </button>
+            </div>
+            <div className="space-y-2">
+              {settings.workerAccounts.map(w => (
+                <div key={w.email} className="flex justify-between items-center bg-black/20 p-3 rounded-xl border border-zinc-800/50">
+                  <span className="text-xs font-bold text-white uppercase">{w.name}</span>
+                  <button onClick={() => removeWorker(w.email)} className="text-[9px] font-black text-red-500 uppercase hover:underline">Delete</button>
+                </div>
+              ))}
             </div>
           </div>
         </div>

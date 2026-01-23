@@ -18,8 +18,6 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
-  const [instructionEditId, setInstructionEditId] = useState<string | null>(null);
-  const [tempInstruction, setTempInstruction] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [cashReceived, setCashReceived] = useState<number | ''>('');
 
@@ -31,6 +29,21 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
 
   const total = useMemo(() => (subtotal - discountAmount) * (1 + settings.taxRate / 100), [subtotal, discountAmount, settings.taxRate]);
   const cashChange = useMemo(() => (paymentMethod === PaymentMethod.CASH && typeof cashReceived === 'number') ? Math.max(0, cashReceived - total) : 0, [paymentMethod, cashReceived, total]);
+
+  const finalizeOrder = () => {
+    if (settings.printerEnabled) {
+      executeFinalPrint();
+    } else {
+      executeDigitalCompletion();
+    }
+  };
+
+  const executeDigitalCompletion = () => {
+    onComplete(total, paymentMethod, paymentMethod === PaymentMethod.CASH ? { received: Number(cashReceived), change: cashChange } : undefined);
+    setShowConfirmModal(false);
+    setDiscountValue(0);
+    setCashReceived('');
+  };
 
   const executeFinalPrint = () => {
     const timestamp = new Date().toLocaleString();
@@ -73,10 +86,7 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
     if (printWindow) {
       printWindow.document.write(receiptHtml);
       printWindow.document.close();
-      onComplete(total, paymentMethod, paymentMethod === PaymentMethod.CASH ? { received: Number(cashReceived), change: cashChange } : undefined);
-      setShowConfirmModal(false);
-      setDiscountValue(0);
-      setCashReceived('');
+      executeDigitalCompletion();
     }
   };
 
@@ -100,7 +110,13 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
               {items.map(item => (
                 <tr key={item.id}>
                   <td className="p-4 font-bold text-white uppercase text-sm">{item.name}</td>
-                  <td className="p-4 text-center font-mono">{item.quantity}</td>
+                  <td className="p-4 text-center font-mono">
+                    <div className="flex items-center justify-center gap-3">
+                      <button onClick={() => onUpdateQty(item.id, -1)} className="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white transition-all">-</button>
+                      <span>{item.quantity}</span>
+                      <button onClick={() => onUpdateQty(item.id, 1)} className="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white transition-all">+</button>
+                    </div>
+                  </td>
                   <td className="p-4 text-right font-mono text-yellow-500">₹{(item.price * item.quantity).toFixed(0)}</td>
                 </tr>
               ))}
@@ -120,7 +136,10 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
         </div>
 
         {paymentMethod === PaymentMethod.CASH && (
-          <input type="number" value={cashReceived} onChange={(e) => setCashReceived(parseFloat(e.target.value) || '')} placeholder="Cash Tendered..." className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-4 text-white text-xl font-mono" />
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase text-zinc-500 ml-1">Cash Received</label>
+            <input type="number" value={cashReceived} onChange={(e) => setCashReceived(parseFloat(e.target.value) || '')} placeholder="₹ 0.00" className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-4 text-white text-xl font-mono focus:border-yellow-500 outline-none transition-all" />
+          </div>
         )}
 
         <div className="pt-4 border-t border-zinc-800 space-y-2">
@@ -130,7 +149,7 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
           </div>
           {paymentMethod === PaymentMethod.CASH && cashReceived >= total && (
             <div className="flex justify-between text-green-500 text-sm font-black uppercase">
-              <span>Change</span>
+              <span>Change Due</span>
               <span>₹{cashChange.toFixed(0)}</span>
             </div>
           )}
@@ -139,20 +158,42 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
         <button 
           onClick={() => setShowConfirmModal(true)}
           disabled={items.length === 0 || (paymentMethod === PaymentMethod.CASH && (!cashReceived || cashReceived < total))}
-          className="w-full py-5 rounded-2xl bg-yellow-500 text-black font-black uppercase text-xl disabled:bg-zinc-800 disabled:text-zinc-600"
+          className={`w-full py-5 rounded-2xl font-black uppercase text-xl transition-all shadow-xl active:scale-95 disabled:bg-zinc-800 disabled:text-zinc-600 ${
+            settings.printerEnabled ? 'bg-yellow-500 text-black hover:bg-yellow-400' : 'bg-white text-black hover:bg-zinc-200'
+          }`}
         >
-          Print Token
+          {settings.printerEnabled ? 'Print Token' : 'Complete Order'}
         </button>
       </div>
 
       {showConfirmModal && (
         <div className="fixed inset-0 z-[130] bg-black/95 backdrop-blur-md flex items-center justify-center p-6">
           <div className="bg-[#1a1a1a] border border-zinc-800 w-full max-w-sm rounded-[2.5rem] p-8 text-center space-y-6">
-             <h3 className="text-2xl font-black uppercase text-white">Finalize Order?</h3>
-             <p className="text-zinc-500 font-bold uppercase text-xs">Token #{orderNo} • ₹{total.toFixed(0)}</p>
+             <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center ${settings.printerEnabled ? 'bg-yellow-500/10 text-yellow-500' : 'bg-green-500/10 text-green-500'}`}>
+               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 {settings.printerEnabled 
+                   ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                   : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                 }
+               </svg>
+             </div>
+             <h3 className="text-2xl font-black uppercase text-white">
+               {settings.printerEnabled ? 'Print & Complete?' : 'Confirm Order?'}
+             </h3>
+             <p className="text-zinc-500 font-bold uppercase text-xs">
+               Token #{orderNo} • Total ₹{total.toFixed(0)}
+               {!settings.printerEnabled && <span className="block mt-1 text-zinc-600">(Digital Receipt Only)</span>}
+             </p>
              <div className="grid grid-cols-1 gap-3">
-                <button onClick={executeFinalPrint} className="w-full bg-green-500 text-black py-5 rounded-2xl font-black uppercase text-sm">Yes, Print & Save</button>
-                <button onClick={() => setShowConfirmModal(false)} className="w-full bg-zinc-800 text-zinc-400 py-4 rounded-2xl font-black uppercase text-xs">Go Back</button>
+                <button 
+                  onClick={finalizeOrder} 
+                  className={`w-full py-5 rounded-2xl font-black uppercase text-sm shadow-xl transition-all ${
+                    settings.printerEnabled ? 'bg-yellow-500 text-black hover:bg-yellow-400' : 'bg-green-500 text-black hover:bg-green-400'
+                  }`}
+                >
+                  Confirm & Finalize
+                </button>
+                <button onClick={() => setShowConfirmModal(false)} className="w-full bg-zinc-800 text-zinc-400 py-4 rounded-2xl font-black uppercase text-xs hover:text-white transition-all">Cancel</button>
              </div>
           </div>
         </div>

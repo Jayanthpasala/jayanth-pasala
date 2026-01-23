@@ -40,8 +40,13 @@ const App: React.FC = () => {
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [openingCash, setOpeningCash] = useState<number>(1000);
   
-  const [printerStatus, setPrinterStatus] = useState<PrinterStatus>(PrinterStatus.CONNECTED);
-  const [connectedPrinterName, setConnectedPrinterName] = useState<string>('WIRELESS READY');
+  const [printerStatus, setPrinterStatus] = useState<PrinterStatus>(PrinterStatus.OFFLINE);
+  const [connectedPrinterName, setConnectedPrinterName] = useState<string>('RETSOL READY');
+
+  const handleUpdatePrinter = (name: string, status: PrinterStatus) => {
+    setConnectedPrinterName(name);
+    setPrinterStatus(status);
+  };
 
   // Multi-Device / Multi-Tab Sync Logic
   useEffect(() => {
@@ -201,9 +206,14 @@ const App: React.FC = () => {
              <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">ID:</span>
              <span className="text-[10px] font-black text-yellow-500">{terminalName}</span>
           </div>
-          <div className={`px-4 py-2 rounded-xl border flex items-center gap-3 bg-green-500/10 border-green-500/30`}>
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            <span className="text-[9px] font-black uppercase tracking-widest text-green-500">{connectedPrinterName}</span>
+          <div className={`px-4 py-2 rounded-xl border flex items-center gap-3 ${settings.printerEnabled && printerStatus === PrinterStatus.CONNECTED ? 'bg-green-500/10 border-green-500/30' : 'bg-zinc-800 border-zinc-700 opacity-50'}`}>
+            <svg className={`w-3 h-3 ${settings.printerEnabled && printerStatus === PrinterStatus.CONNECTED ? 'text-green-500 animate-pulse' : 'text-zinc-600'}`} fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5.5-2.5l7.5-7.5 7.5 7.5" opacity=".3"/>
+              <path d="M4.93 4.93c-3.9 3.9-3.9 10.24 0 14.14l1.41-1.41c-3.12-3.12-3.12-8.19 0-11.31L4.93 4.93zm14.14 0l-1.41 1.41c3.12 3.12 3.12 8.19 0 11.31l1.41 1.41c3.9-3.9 3.9-10.24 0-14.14zM7.76 7.76c-2.34 2.34-2.34 6.14 0 8.48l1.41-1.41c-1.56-1.56-1.56-4.09 0-5.66L7.76 7.76zm8.48 0l-1.41 1.41c1.56 1.56 1.56-4.09 0-5.66l1.41 1.41c2.34-2.34 2.34-6.14 0-8.48zM12 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+            </svg>
+            <span className={`text-[9px] font-black uppercase tracking-widest ${settings.printerEnabled && printerStatus === PrinterStatus.CONNECTED ? 'text-green-500' : 'text-zinc-600'}`}>
+              {settings.printerEnabled ? connectedPrinterName : 'PRINTER OFF'}
+            </span>
           </div>
         </div>
       </header>
@@ -235,7 +245,7 @@ const App: React.FC = () => {
           {activeTab === 'Token Monitor' && <OrderMonitor sales={sales} onUpdateStatus={updateTokenStatus} />}
           {activeTab === 'Bill Management' && <BillManagement sales={sales} setSales={broadcastSales} settings={settings} />}
           {activeTab === 'Manage Items' && <ManageItems items={inventory} setItems={broadcastInventory} />}
-          {activeTab === 'Bill Settings' && <BillSettingsView settings={settings} setSettings={broadcastSettings} openingCash={openingCash} setOpeningCash={broadcastOpeningCash} connectedPrinterName={connectedPrinterName} printerStatus={printerStatus} currentTerminalName={terminalName} onUpdateTerminalName={handleUpdateTerminalName} />}
+          {activeTab === 'Bill Settings' && <BillSettingsView settings={settings} setSettings={broadcastSettings} openingCash={openingCash} setOpeningCash={broadcastOpeningCash} connectedPrinterName={connectedPrinterName} printerStatus={printerStatus} currentTerminalName={terminalName} onUpdateTerminalName={handleUpdateTerminalName} onUpdatePrinter={handleUpdatePrinter} />}
           {activeTab === 'Sales Report' && <SalesReport sales={sales} openingCash={openingCash} onUpdateOpeningCash={broadcastOpeningCash} />}
         </div>
       </main>
