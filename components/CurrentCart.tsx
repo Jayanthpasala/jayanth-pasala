@@ -31,63 +31,10 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
   const cashChange = useMemo(() => (paymentMethod === PaymentMethod.CASH && typeof cashReceived === 'number') ? Math.max(0, cashReceived - total) : 0, [paymentMethod, cashReceived, total]);
 
   const finalizeOrder = () => {
-    if (settings.printerEnabled) {
-      executeFinalPrint();
-    } else {
-      executeDigitalCompletion();
-    }
-  };
-
-  const executeDigitalCompletion = () => {
     onComplete(total, paymentMethod, paymentMethod === PaymentMethod.CASH ? { received: Number(cashReceived), change: cashChange } : undefined);
     setShowConfirmModal(false);
     setDiscountValue(0);
     setCashReceived('');
-  };
-
-  const executeFinalPrint = () => {
-    const timestamp = new Date().toLocaleString();
-    const itemsHtml = items.map(item => `
-      <div style="display:flex; justify-content:space-between; margin-bottom:2px;">
-        <span style="flex:1;">${item.quantity}x ${item.name.toUpperCase()}</span>
-        <span style="width:20mm; text-align:right;">₹${(item.price * item.quantity).toFixed(0)}</span>
-      </div>
-      ${item.instructions ? `<div style="font-size:10px; font-style:italic; margin-bottom:4px; padding-left:10px;">>> ${item.instructions.toUpperCase()}</div>` : ''}
-    `).join('');
-
-    const receiptHtml = `
-      <html>
-        <head>
-          <style>
-            @page { size: 80mm auto; margin: 0; }
-            body { font-family: 'Courier New', monospace; width: 72mm; margin: 4mm auto; font-size: 13px; line-height: 1.1; color: #000; background: #fff; }
-            .center { text-align: center; }
-            .token { font-size: 48px; font-weight: 900; border: 3px solid #000; margin: 8px 0; padding: 5px; }
-            .divider { border-top: 1px dashed #000; margin: 5px 0; }
-            .total { font-weight: bold; font-size: 16px; margin-top: 5px; }
-          </style>
-        </head>
-        <body onload="window.print(); window.close();">
-          <div class="center" style="font-weight:bold; font-size:18px;">${settings.stallName.toUpperCase()}</div>
-          <div class="center token">#${orderNo}</div>
-          <div class="center">${timestamp}</div>
-          <div class="divider"></div>
-          ${itemsHtml}
-          <div class="divider"></div>
-          <div class="total center">TOTAL: ₹${total.toFixed(0)}</div>
-          <div class="center" style="font-size:11px; margin-top:2px;">Paid via: ${paymentMethod}</div>
-          <div class="divider"></div>
-          <div class="center" style="font-size:10px;">${settings.footerMessage}</div>
-        </body>
-      </html>
-    `;
-
-    const printWindow = window.open('', '_blank', 'width=350,height=500');
-    if (printWindow) {
-      printWindow.document.write(receiptHtml);
-      printWindow.document.close();
-      executeDigitalCompletion();
-    }
   };
 
   return (
@@ -162,7 +109,7 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
             settings.printerEnabled ? 'bg-yellow-500 text-black hover:bg-yellow-400' : 'bg-white text-black hover:bg-zinc-200'
           }`}
         >
-          {settings.printerEnabled ? 'Print Token' : 'Complete Order'}
+          {settings.printerEnabled ? (settings.isPrintHub ? 'Print Local Token' : 'Send to Retsol Hub') : 'Complete Order'}
         </button>
       </div>
 
@@ -182,7 +129,7 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
              </h3>
              <p className="text-zinc-500 font-bold uppercase text-xs">
                Token #{orderNo} • Total ₹{total.toFixed(0)}
-               {!settings.printerEnabled && <span className="block mt-1 text-zinc-600">(Digital Receipt Only)</span>}
+               {!settings.isPrintHub && settings.printerEnabled && <span className="block mt-1 text-blue-500">(Sending to Hub Terminal)</span>}
              </p>
              <div className="grid grid-cols-1 gap-3">
                 <button 

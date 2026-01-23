@@ -19,5 +19,6 @@ export const DEFAULT_SETTINGS: BillSettings = {
   workerAccounts: [
     { email: 'worker1@kapi.com', name: 'Staff A' }
   ],
-  printerEnabled: true
+  printerEnabled: true,
+  isPrintHub: false
 };

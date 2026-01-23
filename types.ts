@@ -54,6 +54,7 @@ export interface BillSettings {
   taxRate: number;
   workerAccounts: WorkerAccount[];
   printerEnabled: boolean;
+  isPrintHub: boolean; // Designates if THIS device is the one with the OTG connection
 }
 
 export interface SaleRecord {
@@ -67,4 +68,5 @@ export interface SaleRecord {
   cashChange?: number;
   status: OrderStatus;
   settledBy: string; 
+  terminalId?: string; // Track which terminal generated the sale
 }

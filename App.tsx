@@ -9,7 +9,7 @@ import SalesReport from './components/SalesReport';
 import BillManagement from './components/BillManagement';
 import OrderMonitor from './components/OrderMonitor';
 
-// Sync Channel for Multi-Tab Business Operations
+// Sync Channel for Multi-Device Business Operations
 const syncChannel = new BroadcastChannel('kapi_coast_pos_sync');
 
 const App: React.FC = () => {
@@ -19,7 +19,6 @@ const App: React.FC = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Persistent Terminal Identity Logic
   const [terminalName, setTerminalName] = useState(() => {
     const saved = localStorage.getItem('kapi_terminal_name');
     if (saved) return saved;
@@ -48,10 +47,63 @@ const App: React.FC = () => {
     setPrinterStatus(status);
   };
 
-  // Multi-Device / Multi-Tab Sync Logic
+  // HELPER: EXECUTE PHYSICAL PRINT (For Retsol 82 UB)
+  const executePhysicalPrint = (sale: SaleRecord) => {
+    const timestamp = new Date(sale.timestamp).toLocaleString();
+    const itemsHtml = sale.items.map(item => `
+      <div style="display:flex; justify-content:space-between; margin-bottom:2px;">
+        <span style="flex:1;">${item.quantity}x ${item.name.toUpperCase()}</span>
+        <span style="width:20mm; text-align:right;">₹${(item.price * item.quantity).toFixed(0)}</span>
+      </div>
+      ${item.instructions ? `<div style="font-size:10px; font-style:italic; margin-bottom:4px; padding-left:10px;">>> ${item.instructions.toUpperCase()}</div>` : ''}
+    `).join('');
+
+    const receiptHtml = `
+      <html>
+        <head>
+          <style>
+            @page { size: 80mm auto; margin: 0; }
+            body { font-family: 'Courier New', monospace; width: 72mm; margin: 4mm auto; font-size: 13px; line-height: 1.1; color: #000; background: #fff; }
+            .center { text-align: center; }
+            .token { font-size: 48px; font-weight: 900; border: 3px solid #000; margin: 8px 0; padding: 5px; }
+            .divider { border-top: 1px dashed #000; margin: 5px 0; }
+            .total { font-weight: bold; font-size: 16px; margin-top: 5px; }
+          </style>
+        </head>
+        <body onload="window.print(); window.close();">
+          <div class="center" style="font-weight:bold; font-size:18px;">${settings.stallName.toUpperCase()}</div>
+          <div class="center token">#${sale.tokenNumber}</div>
+          <div class="center">${timestamp}</div>
+          <div class="center" style="font-size:9px;">Terminal: ${sale.terminalId || 'UNKNOWN'}</div>
+          <div class="divider"></div>
+          ${itemsHtml}
+          <div class="divider"></div>
+          <div class="total center">TOTAL: ₹${sale.total.toFixed(0)}</div>
+          <div class="center" style="font-size:11px; margin-top:2px;">Paid via: ${sale.paymentMethod}</div>
+          <div class="divider"></div>
+          <div class="center" style="font-size:10px;">${settings.footerMessage}</div>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank', 'width=350,height=500');
+    if (printWindow) {
+      printWindow.document.write(receiptHtml);
+      printWindow.document.close();
+    }
+  };
+
+  // Master Hub Printing Listener
   useEffect(() => {
     const handleSync = (event: MessageEvent) => {
       const { type, payload } = event.data;
+      
+      // If this device is the HUB and we receive a REMOTE_PRINT request
+      if (type === 'REMOTE_PRINT' && settings.isPrintHub && settings.printerEnabled) {
+        console.log("HUB: Received remote print request from", payload.terminalId);
+        executePhysicalPrint(payload);
+      }
+
       switch (type) {
         case 'UPDATE_SALES': setSales(payload); break;
         case 'UPDATE_INVENTORY': setInventory(payload); break;
@@ -61,7 +113,7 @@ const App: React.FC = () => {
     };
     syncChannel.addEventListener('message', handleSync);
     return () => syncChannel.removeEventListener('message', handleSync);
-  }, []);
+  }, [settings.isPrintHub, settings.printerEnabled, settings.stallName, settings.footerMessage]);
 
   const broadcastSales = (newSales: SaleRecord[]) => {
     setSales(newSales);
@@ -141,12 +193,28 @@ const App: React.FC = () => {
       cashReceived: cashDetails?.received,
       cashChange: cashDetails?.change,
       status: OrderStatus.PENDING,
-      settledBy: session.name
+      settledBy: session.name,
+      terminalId: terminalName
     };
-    broadcastSales([...sales, record]);
+    
+    // 1. Update the global sales list
+    const updatedSales = [...sales, record];
+    broadcastSales(updatedSales);
+
+    // 2. TRIGGER PRINT LOGIC
+    if (settings.printerEnabled) {
+      if (settings.isPrintHub) {
+        // We are the HUB: Print directly
+        executePhysicalPrint(record);
+      } else {
+        // We are a REMOTE terminal: Send print request to HUB
+        syncChannel.postMessage({ type: 'REMOTE_PRINT', payload: record });
+      }
+    }
+
     setCart([]);
     setActiveTab('Token Monitor');
-  }, [cart, sales, session]);
+  }, [cart, sales, session, settings, terminalName]);
 
   const updateTokenStatus = useCallback((saleId: string, newStatus: OrderStatus) => {
     broadcastSales(sales.map(s => s.id === saleId ? { ...s, status: newStatus } : s));
@@ -206,13 +274,21 @@ const App: React.FC = () => {
              <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">ID:</span>
              <span className="text-[10px] font-black text-yellow-500">{terminalName}</span>
           </div>
-          <div className={`px-4 py-2 rounded-xl border flex items-center gap-3 ${settings.printerEnabled && printerStatus === PrinterStatus.CONNECTED ? 'bg-green-500/10 border-green-500/30' : 'bg-zinc-800 border-zinc-700 opacity-50'}`}>
-            <svg className={`w-3 h-3 ${settings.printerEnabled && printerStatus === PrinterStatus.CONNECTED ? 'text-green-500 animate-pulse' : 'text-zinc-600'}`} fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5.5-2.5l7.5-7.5 7.5 7.5" opacity=".3"/>
-              <path d="M4.93 4.93c-3.9 3.9-3.9 10.24 0 14.14l1.41-1.41c-3.12-3.12-3.12-8.19 0-11.31L4.93 4.93zm14.14 0l-1.41 1.41c3.12 3.12 3.12 8.19 0 11.31l1.41 1.41c3.9-3.9 3.9-10.24 0-14.14zM7.76 7.76c-2.34 2.34-2.34 6.14 0 8.48l1.41-1.41c-1.56-1.56-1.56-4.09 0-5.66L7.76 7.76zm8.48 0l-1.41 1.41c1.56 1.56 1.56-4.09 0-5.66l1.41 1.41c2.34-2.34 2.34-6.14 0-8.48zM12 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-            </svg>
-            <span className={`text-[9px] font-black uppercase tracking-widest ${settings.printerEnabled && printerStatus === PrinterStatus.CONNECTED ? 'text-green-500' : 'text-zinc-600'}`}>
-              {settings.printerEnabled ? connectedPrinterName : 'PRINTER OFF'}
+          
+          <div className={`px-4 py-2 rounded-xl border flex items-center gap-3 transition-all ${settings.printerEnabled ? 'bg-green-500/10 border-green-500/30' : 'bg-zinc-800 border-zinc-700 opacity-50'}`}>
+            {settings.isPrintHub ? (
+              <svg className={`w-3.5 h-3.5 ${printerStatus === PrinterStatus.CONNECTED ? 'text-green-500 animate-pulse' : 'text-zinc-600'}`} fill="currentColor" viewBox="0 0 24 24">
+                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4.5-9h-9v2h9v-2z"/>
+              </svg>
+            ) : (
+              <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+              </svg>
+            )}
+            <span className={`text-[9px] font-black uppercase tracking-widest ${settings.isPrintHub ? 'text-green-500' : 'text-blue-500'}`}>
+              {settings.printerEnabled 
+                ? (settings.isPrintHub ? `HUB: ${connectedPrinterName}` : "LINKED TO HUB") 
+                : 'PRINTER OFF'}
             </span>
           </div>
         </div>
