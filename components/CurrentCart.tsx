@@ -94,7 +94,8 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
             <span>Total</span>
             <span className="text-yellow-500">₹{total.toFixed(0)}</span>
           </div>
-          {paymentMethod === PaymentMethod.CASH && cashReceived >= total && (
+          {/* Fix: Operator >= cannot be applied to types 'string | number' and 'number'. Added explicit type check. */}
+          {paymentMethod === PaymentMethod.CASH && typeof cashReceived === 'number' && cashReceived >= total && (
             <div className="flex justify-between text-green-500 text-sm font-black uppercase">
               <span>Change Due</span>
               <span>₹{cashChange.toFixed(0)}</span>
@@ -104,7 +105,8 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
 
         <button 
           onClick={() => setShowConfirmModal(true)}
-          disabled={items.length === 0 || (paymentMethod === PaymentMethod.CASH && (!cashReceived || cashReceived < total))}
+          /* Fix: Operator < cannot be applied to types 'string | number' and 'number'. Added explicit type check. */
+          disabled={items.length === 0 || (paymentMethod === PaymentMethod.CASH && (typeof cashReceived !== 'number' || cashReceived < total))}
           className={`w-full py-5 rounded-2xl font-black uppercase text-xl transition-all shadow-xl active:scale-95 disabled:bg-zinc-800 disabled:text-zinc-600 ${
             settings.printerEnabled ? 'bg-yellow-500 text-black hover:bg-yellow-400' : 'bg-white text-black hover:bg-zinc-200'
           }`}
@@ -115,7 +117,7 @@ const CurrentCart: React.FC<CurrentCartProps> = ({
 
       {showConfirmModal && (
         <div className="fixed inset-0 z-[130] bg-black/95 backdrop-blur-md flex items-center justify-center p-6">
-          <div className="bg-[#1a1a1a] border border-zinc-800 w-full max-w-sm rounded-[2.5rem] p-8 text-center space-y-6">
+          <div className="bg-[#1a1a1a] border border-zinc-800 w-full max-sm:max-w-xs max-w-sm rounded-[2.5rem] p-8 text-center space-y-6">
              <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center ${settings.printerEnabled ? 'bg-yellow-500/10 text-yellow-500' : 'bg-green-500/10 text-green-500'}`}>
                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                  {settings.printerEnabled 

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Food Stall POS</title>
+    <title>Kapi Coast POS</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       @media print {
@@ -12,6 +12,8 @@
         #receipt-print-area, #receipt-print-area * { visibility: visible; }
         #receipt-print-area { position: absolute; left: 0; top: 0; width: 80mm; }
       }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 <script type="importmap">
 {
@@ -19,12 +21,14 @@
     "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "recharts": "https://esm.sh/recharts@^3.6.0"
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "gun": "https://esm.sh/gun@0.2020.1239",
+    "gun/": "https://esm.sh/gun@^0.2020.1241/"
   }
 }
 </script>
 </head>
-<body class="bg-gray-900 text-white min-h-screen">
+<body class="bg-[#090909] text-white min-h-screen font-sans">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
 </body>
