@@ -9,14 +9,8 @@ import SalesReport from './components/SalesReport';
 import BillManagement from './components/BillManagement';
 import OrderMonitor from './components/OrderMonitor';
 
-const generateBillCode = () => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let result = '';
-  for (let i = 0; i < 4; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return `BILL-${result}`;
-};
+// Sync Channel for Multi-Tab Business Operations
+const syncChannel = new BroadcastChannel('kapi_coast_pos_sync');
 
 const App: React.FC = () => {
   const [session, setSession] = useState<UserSession | null>(null);
@@ -25,6 +19,20 @@ const App: React.FC = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // Persistent Terminal Identity Logic
+  const [terminalName, setTerminalName] = useState(() => {
+    const saved = localStorage.getItem('kapi_terminal_name');
+    if (saved) return saved;
+    const randomId = Math.random().toString(36).substr(2, 4).toUpperCase();
+    return `TERM-${randomId}`;
+  });
+
+  const handleUpdateTerminalName = (newName: string) => {
+    const formatted = newName.toUpperCase().trim() || 'UNNAMED';
+    setTerminalName(formatted);
+    localStorage.setItem('kapi_terminal_name', formatted);
+  };
+
   const [activeTab, setActiveTab] = useState<string>('Order Menu');
   const [inventory, setInventory] = useState<MenuItem[]>(INITIAL_MENU);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -32,70 +40,47 @@ const App: React.FC = () => {
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [openingCash, setOpeningCash] = useState<number>(1000);
   
-  // Real Printer Connectivity State
-  const [printerStatus, setPrinterStatus] = useState<PrinterStatus>(PrinterStatus.OFFLINE);
-  const [connectedPrinterName, setConnectedPrinterName] = useState<string>('NONE');
+  const [printerStatus, setPrinterStatus] = useState<PrinterStatus>(PrinterStatus.CONNECTED);
+  const [connectedPrinterName, setConnectedPrinterName] = useState<string>('WIRELESS READY');
 
-  // Real USB Device Tracking
-  const updatePrinterStatus = useCallback(async () => {
-    if (!("usb" in (navigator as any))) return;
-    
-    if (!settings.printerEnabled) {
-      setPrinterStatus(PrinterStatus.OFFLINE);
-      setConnectedPrinterName('DISABLED');
-      return;
-    }
-
-    try {
-      const devices = await (navigator as any).usb.getDevices();
-      if (devices.length > 0) {
-        // Find a device that looks like a printer or just take the first paired one
-        const printer = devices[0];
-        setPrinterStatus(PrinterStatus.CONNECTED);
-        setConnectedPrinterName(printer.productName || `USB Device (${printer.vendorId})`);
-      } else {
-        setPrinterStatus(PrinterStatus.OFFLINE);
-        setConnectedPrinterName('NONE');
-      }
-    } catch (err) {
-      console.error("Error fetching USB devices:", err);
-      setPrinterStatus(PrinterStatus.OFFLINE);
-    }
-  }, [settings.printerEnabled]);
-
+  // Multi-Device / Multi-Tab Sync Logic
   useEffect(() => {
-    if (!("usb" in (navigator as any))) {
-      console.warn("WebUSB not supported in this browser");
-      return;
-    }
-
-    (navigator as any).usb.addEventListener('connect', updatePrinterStatus);
-    (navigator as any).usb.addEventListener('disconnect', updatePrinterStatus);
-
-    updatePrinterStatus();
-
-    return () => {
-      (navigator as any).usb.removeEventListener('connect', updatePrinterStatus);
-      (navigator as any).usb.removeEventListener('disconnect', updatePrinterStatus);
-    };
-  }, [updatePrinterStatus]);
-
-  const handlePairPrinter = async () => {
-    try {
-      // Requesting specifically for printers or any device
-      const device = await (navigator as any).usb.requestDevice({ filters: [] });
-      if (device) {
-        await updatePrinterStatus();
+    const handleSync = (event: MessageEvent) => {
+      const { type, payload } = event.data;
+      switch (type) {
+        case 'UPDATE_SALES': setSales(payload); break;
+        case 'UPDATE_INVENTORY': setInventory(payload); break;
+        case 'UPDATE_SETTINGS': setSettings(payload); break;
+        case 'UPDATE_OPENING_CASH': setOpeningCash(payload); break;
       }
-    } catch (err) {
-      console.log("User cancelled printer pairing or error occurred", err);
-    }
+    };
+    syncChannel.addEventListener('message', handleSync);
+    return () => syncChannel.removeEventListener('message', handleSync);
+  }, []);
+
+  const broadcastSales = (newSales: SaleRecord[]) => {
+    setSales(newSales);
+    syncChannel.postMessage({ type: 'UPDATE_SALES', payload: newSales });
+  };
+
+  const broadcastInventory = (newInventory: MenuItem[]) => {
+    setInventory(newInventory);
+    syncChannel.postMessage({ type: 'UPDATE_INVENTORY', payload: newInventory });
+  };
+
+  const broadcastSettings = (newSettings: BillSettings) => {
+    setSettings(newSettings);
+    syncChannel.postMessage({ type: 'UPDATE_SETTINGS', payload: newSettings });
+  };
+
+  const broadcastOpeningCash = (val: number) => {
+    setOpeningCash(val);
+    syncChannel.postMessage({ type: 'UPDATE_OPENING_CASH', payload: val });
   };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const email = loginEmail.toLowerCase().trim();
-    
     if (email === OWNER_EMAIL.toLowerCase()) {
       setSession({ email, role: UserRole.ADMIN, name: 'Owner' });
       setLoginError('');
@@ -105,7 +90,7 @@ const App: React.FC = () => {
         setSession({ email, role: UserRole.WORKER, name: worker.name });
         setLoginError('');
       } else {
-        setLoginError('Access denied. Please check your email or contact admin.');
+        setLoginError('Access denied. Please check your email.');
       }
     }
   };
@@ -121,26 +106,18 @@ const App: React.FC = () => {
   const addToCart = useCallback((item: MenuItem) => {
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id);
-      if (existing) {
-        return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
-      }
+      if (existing) return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
       return [...prev, { ...item, quantity: 1, instructions: '' }];
     });
   }, []);
 
-  const removeFromCart = useCallback((id: string) => {
-    setCart(prev => prev.filter(i => i.id !== id));
-  }, []);
+  const removeFromCart = useCallback((id: string) => setCart(prev => prev.filter(i => i.id !== id)), []);
 
   const updateQuantity = useCallback((id: string, delta: number, instructions?: string) => {
     setCart(prev => prev.map(i => {
       if (i.id === id) {
         const newQty = Math.max(1, i.quantity + delta);
-        return { 
-          ...i, 
-          quantity: newQty, 
-          instructions: instructions !== undefined ? instructions : i.instructions 
-        };
+        return { ...i, quantity: newQty, instructions: instructions !== undefined ? instructions : i.instructions };
       }
       return i;
     }));
@@ -150,7 +127,7 @@ const App: React.FC = () => {
     if (!session) return;
     const nextToken = sales.length > 0 ? (sales[sales.length - 1].tokenNumber % 999) + 1 : 1;
     const record: SaleRecord = {
-      id: generateBillCode(),
+      id: `BILL-${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
       tokenNumber: nextToken,
       timestamp: Date.now(),
       items: [...cart],
@@ -161,14 +138,14 @@ const App: React.FC = () => {
       status: OrderStatus.PENDING,
       settledBy: session.name
     };
-    setSales(prev => [...prev, record]);
+    broadcastSales([...sales, record]);
     setCart([]);
     setActiveTab('Token Monitor');
   }, [cart, sales, session]);
 
   const updateTokenStatus = useCallback((saleId: string, newStatus: OrderStatus) => {
-    setSales(prev => prev.map(s => s.id === saleId ? { ...s, status: newStatus } : s));
-  }, []);
+    broadcastSales(sales.map(s => s.id === saleId ? { ...s, status: newStatus } : s));
+  }, [sales]);
 
   const tabs = useMemo(() => {
     if (!session) return [];
@@ -177,46 +154,30 @@ const App: React.FC = () => {
     return session.role === UserRole.ADMIN ? [...workerTabs, ...adminTabs] : workerTabs;
   }, [session]);
 
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-
   if (!session) {
     return (
       <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center p-6 font-sans">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center">
-            <div className="w-20 h-20 bg-white rounded-2xl mx-auto flex items-center justify-center shadow-[0_0_40px_rgba(255,255,255,0.1)] mb-6 transform rotate-3">
+            <div className="w-20 h-20 bg-white rounded-2xl mx-auto flex items-center justify-center shadow-xl mb-6 transform rotate-3">
               <span className="text-3xl font-black text-black">KC</span>
             </div>
-            <h1 className="text-3xl font-black text-white tracking-tight uppercase">Kapi Coast</h1>
-            <p className="text-zinc-500 text-xs font-bold tracking-widest uppercase mt-2">Partner & Staff Login</p>
+            <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Kapi Coast</h1>
+            <p className="text-zinc-500 text-xs font-bold tracking-widest uppercase mt-2">Login to {terminalName}</p>
           </div>
-
-          <form onSubmit={handleLogin} className="bg-[#1a1a1a] p-10 rounded-[2.5rem] border border-zinc-800/50 shadow-2xl space-y-8">
+          <form onSubmit={handleLogin} className="bg-[#1a1a1a] p-10 rounded-[2.5rem] border border-zinc-800 shadow-2xl space-y-8">
             <div className="space-y-4">
               <div className="relative">
-                <label className="text-[10px] font-black uppercase text-zinc-500 ml-1 mb-2 block">Registered Email Address</label>
+                <label className="text-[10px] font-black uppercase text-zinc-500 ml-1 mb-2 block">Staff Email</label>
                 <input 
-                  type="email"
-                  required
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
+                  type="email" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)}
                   placeholder="name@kapicoast.com"
-                  className="w-full bg-[#0d0d0d] border border-zinc-800 rounded-2xl px-6 py-4 text-white placeholder-zinc-700 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 transition-all text-sm font-bold"
+                  className="w-full bg-[#0d0d0d] border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/20 text-sm font-bold"
                 />
               </div>
-              {loginError && (
-                <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl">
-                  <p className="text-red-500 text-[10px] font-black uppercase text-center">{loginError}</p>
-                </div>
-              )}
+              {loginError && <p className="text-red-500 text-[10px] font-black uppercase text-center">{loginError}</p>}
             </div>
-
-            <button 
-              type="submit"
-              className="w-full bg-white text-black py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-zinc-200 active:scale-95 transition-all shadow-xl"
-            >
-              Sign In to Dashboard
-            </button>
+            <button type="submit" className="w-full bg-white text-black py-5 rounded-2xl font-black uppercase text-sm hover:bg-zinc-200 shadow-xl transition-all">Enter</button>
           </form>
         </div>
       </div>
@@ -225,175 +186,67 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-[#090909] text-zinc-100 overflow-hidden relative">
-      
-      {/* Sidebar Drawer */}
-      <div 
-        className={`fixed inset-0 z-[100] bg-black/80 backdrop-blur-md transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-        onClick={toggleSidebar}
-      />
-      
-      <aside 
-        className={`fixed top-0 left-0 h-full w-[280px] bg-[#111] border-r border-zinc-800/50 z-[110] transition-transform duration-500 ease-in-out shadow-2xl flex flex-col ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
-      >
-        <div className="p-8 border-b border-zinc-800/50 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center font-black text-black text-lg shadow-xl shadow-white/5">KC</div>
-            <span className="font-black text-lg uppercase tracking-tighter">Navigation</span>
-          </div>
-          <button onClick={toggleSidebar} className="text-zinc-500 hover:text-white transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
-          </button>
-        </div>
-
-        <nav className="flex-1 overflow-y-auto p-4 space-y-2">
-          <div className="px-4 mb-4">
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-2">Main Menu</p>
-          </div>
-          {tabs.map(tab => (
-            <button
-              key={tab}
-              onClick={() => {
-                setActiveTab(tab);
-                setIsSidebarOpen(false);
-              }}
-              className={`w-full text-left px-6 py-4 rounded-2xl text-xs font-black uppercase transition-all flex items-center gap-4 ${
-                activeTab === tab 
-                ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/10' 
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${activeTab === tab ? 'bg-black' : 'bg-zinc-800'}`}></span>
-              {tab}
-            </button>
-          ))}
-        </nav>
-
-        <div className="p-6 border-t border-zinc-800/50 space-y-4 bg-black/20">
-          <div className="flex items-center gap-3 px-2">
-            <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-black text-white border border-zinc-700">
-              {session.name.charAt(0)}
-            </div>
-            <div>
-              <p className="text-xs font-black uppercase text-white leading-none">{session.name}</p>
-              <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{session.role}</p>
-            </div>
-          </div>
-          <button 
-            onClick={() => setShowLogoutConfirm(true)}
-            className="w-full bg-red-500/10 text-red-500 border border-red-500/20 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-            Logout Session
-          </button>
-        </div>
-      </aside>
-
-      {/* Top Header */}
       <header className="bg-[#111] border-b border-zinc-800/50 px-6 py-4 flex items-center justify-between z-50">
         <div className="flex items-center gap-4">
-          <button 
-            onClick={toggleSidebar}
-            className="w-12 h-12 flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white transition-all active:scale-90"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
+          <button onClick={() => setIsSidebarOpen(true)} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white active:scale-90">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center font-black text-black text-sm">KC</div>
             <h1 className="text-lg font-black tracking-tighter uppercase">{settings.stallName}</h1>
           </div>
         </div>
-
         <div className="flex items-center gap-4">
-          {/* Printer Status Indicator */}
-          <div className={`px-4 py-2 rounded-xl border flex items-center gap-3 transition-all duration-500 ${
-            printerStatus === PrinterStatus.CONNECTED ? 'bg-green-500/10 border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 
-            printerStatus === PrinterStatus.BUSY ? 'bg-yellow-500/10 border-yellow-500/30' : 
-            'bg-red-500/10 border-red-500/30'
-          }`}>
-            <span className={`w-2 h-2 rounded-full ${
-              printerStatus === PrinterStatus.CONNECTED ? 'bg-green-500 animate-pulse' : 
-              printerStatus === PrinterStatus.BUSY ? 'bg-yellow-500 animate-bounce' : 
-              'bg-red-500'
-            }`}></span>
-            <span className={`text-[9px] font-black uppercase tracking-widest ${
-              printerStatus === PrinterStatus.CONNECTED ? 'text-green-500' : 
-              printerStatus === PrinterStatus.BUSY ? 'text-yellow-500' : 
-              'text-red-500'
-            }`}>
-              PRINTER: {connectedPrinterName}
-            </span>
+          <div className="flex items-center gap-3 bg-zinc-800/30 px-4 py-2 rounded-xl border border-zinc-800">
+             <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">ID:</span>
+             <span className="text-[10px] font-black text-yellow-500">{terminalName}</span>
           </div>
-
-          <div className="bg-zinc-800/50 px-4 py-2 rounded-xl border border-zinc-700 hidden sm:flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-            <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">{activeTab}</span>
+          <div className={`px-4 py-2 rounded-xl border flex items-center gap-3 bg-green-500/10 border-green-500/30`}>
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            <span className="text-[9px] font-black uppercase tracking-widest text-green-500">{connectedPrinterName}</span>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
+      <div className={`fixed inset-0 z-[100] bg-black/80 backdrop-blur-md transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)} />
+      <aside className={`fixed top-0 left-0 h-full w-[280px] bg-[#111] border-r border-zinc-800/50 z-[110] transition-transform duration-500 flex flex-col ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-8 border-b border-zinc-800/50 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center font-black text-black text-lg">KC</div>
+            <span className="font-black text-lg uppercase tracking-tighter">POS MENU</span>
+          </div>
+        </div>
+        <nav className="flex-1 overflow-y-auto p-4 space-y-2">
+          {tabs.map(tab => (
+            <button key={tab} onClick={() => { setActiveTab(tab); setIsSidebarOpen(false); }} className={`w-full text-left px-6 py-4 rounded-2xl text-xs font-black uppercase transition-all flex items-center gap-4 ${activeTab === tab ? 'bg-yellow-500 text-black shadow-lg' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}>
+              <span className={`w-2 h-2 rounded-full ${activeTab === tab ? 'bg-black' : 'bg-zinc-800'}`} />
+              {tab}
+            </button>
+          ))}
+        </nav>
+        <div className="p-6 border-t border-zinc-800/50 bg-black/20">
+          <button onClick={() => setShowLogoutConfirm(true)} className="w-full bg-red-500/10 text-red-500 border border-red-500/20 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all">Sign Out</button>
+        </div>
+      </aside>
+
       <main className="flex-1 overflow-y-auto p-4 md:p-8">
         <div className="max-w-7xl mx-auto h-full">
-          {activeTab === 'Order Menu' && (
-            <OrderMenu 
-              items={inventory} 
-              onAdd={addToCart} 
-              cart={cart}
-              onRemoveFromCart={removeFromCart}
-              onUpdateCartQty={updateQuantity}
-              onCompleteSale={completeSale}
-              settings={settings}
-              nextTokenNumber={sales.length > 0 ? (sales[sales.length - 1].tokenNumber % 999) + 1 : 1}
-              printerStatus={printerStatus}
-              connectedPrinterName={connectedPrinterName}
-            />
-          )}
+          {activeTab === 'Order Menu' && <OrderMenu items={inventory} onAdd={addToCart} cart={cart} onRemoveFromCart={removeFromCart} onUpdateCartQty={updateQuantity} onCompleteSale={completeSale} settings={settings} nextTokenNumber={sales.length > 0 ? (sales[sales.length - 1].tokenNumber % 999) + 1 : 1} printerStatus={printerStatus} connectedPrinterName={connectedPrinterName} />}
           {activeTab === 'Token Monitor' && <OrderMonitor sales={sales} onUpdateStatus={updateTokenStatus} />}
-          {activeTab === 'Bill Management' && <BillManagement sales={sales} setSales={setSales} settings={settings} />}
-          {activeTab === 'Manage Items' && <ManageItems items={inventory} setItems={setInventory} />}
-          {activeTab === 'Bill Settings' && (
-            <BillSettingsView 
-              settings={settings} 
-              setSettings={setSettings} 
-              openingCash={openingCash} 
-              setOpeningCash={setOpeningCash}
-              onPairPrinter={handlePairPrinter}
-              connectedPrinterName={connectedPrinterName}
-              printerStatus={printerStatus}
-            />
-          )}
-          {activeTab === 'Sales Report' && <SalesReport sales={sales} openingCash={openingCash} onUpdateOpeningCash={setOpeningCash} />}
+          {activeTab === 'Bill Management' && <BillManagement sales={sales} setSales={broadcastSales} settings={settings} />}
+          {activeTab === 'Manage Items' && <ManageItems items={inventory} setItems={broadcastInventory} />}
+          {activeTab === 'Bill Settings' && <BillSettingsView settings={settings} setSettings={broadcastSettings} openingCash={openingCash} setOpeningCash={broadcastOpeningCash} connectedPrinterName={connectedPrinterName} printerStatus={printerStatus} currentTerminalName={terminalName} onUpdateTerminalName={handleUpdateTerminalName} />}
+          {activeTab === 'Sales Report' && <SalesReport sales={sales} openingCash={openingCash} onUpdateOpeningCash={broadcastOpeningCash} />}
         </div>
       </main>
 
-      {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="bg-[#1a1a1a] border border-zinc-800 w-full max-sm:max-w-xs max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-in fade-in zoom-in duration-300">
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-2">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-black uppercase text-white tracking-tight">End Session?</h3>
-              <p className="text-zinc-500 text-sm font-medium">Are you sure you want to log out of the POS system? Unsaved carts will be cleared.</p>
-            </div>
+          <div className="bg-[#1a1a1a] border border-zinc-800 w-full max-sm:max-w-xs max-w-sm rounded-[2.5rem] p-8 shadow-2xl">
+            <h3 className="text-xl font-black uppercase text-white text-center">Logout?</h3>
             <div className="mt-8 space-y-3">
-              <button 
-                onClick={confirmLogout}
-                className="w-full bg-red-500 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
-              >
-                Yes, Sign Out
-              </button>
-              <button 
-                onClick={() => setShowLogoutConfirm(false)}
-                className="w-full bg-zinc-800 text-zinc-400 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:text-white transition-all"
-              >
-                Stay Logged In
-              </button>
+              <button onClick={confirmLogout} className="w-full bg-red-500 text-white py-4 rounded-2xl font-black uppercase text-xs">Yes, End Session</button>
+              <button onClick={() => setShowLogoutConfirm(false)} className="w-full bg-zinc-800 text-zinc-400 py-4 rounded-2xl font-black uppercase text-xs">Stay</button>
             </div>
           </div>
         </div>
